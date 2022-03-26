@@ -1,7 +1,8 @@
-#include "multitree_head.c"
+#include "multitree.h"
 
 int error_lineno = 0;
-int get_error = 0;
+int get_syn_error = 0;
+node_t *CST;
 
 node_t *trans_tree(char *name, int lineno, int num, ...){
     node_t *root = create_other_node(name, lineno);
@@ -67,8 +68,6 @@ void print_str(char *str){
 }
 
 void print_tree(node_t *root, int depth){
-    if(get_error) return;
-
     for(int i = 0; i < depth; i++){
         putchar(' ');putchar(' ');
     }

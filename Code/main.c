@@ -1,10 +1,11 @@
 #include <stdio.h>
-//#define DEBUG
+//#define BISON_DEBUG
 extern int yylineno;
 extern int yydebug;
-extern int error_lineno;
 extern void yyrestart(FILE *input_file);
 extern int yyparse (void);
+#include "multitree.h"
+
 int main(int argc, char** argv) {
     if (argc <= 1) return 1;
     FILE* f = fopen(argv[1], "r");
@@ -14,10 +15,12 @@ int main(int argc, char** argv) {
     }
     yylineno = 1;
     error_lineno = 0;
-    #ifdef DEBUG
+    #ifdef BISON_DEBUG
         yydebug = 1;
     #endif
     yyrestart(f);
     yyparse();
+    if(!get_syn_error) 
+        print_tree(CST, 0);
     return 0;
 }

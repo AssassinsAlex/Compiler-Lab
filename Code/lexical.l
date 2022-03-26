@@ -9,7 +9,7 @@
         yylloc.last_column = yycolumn + yyleng - 1; \
         yycolumn += yyleng;
     node_t *create_token_node(char *name, char *str);
-    extern int get_error;
+    extern int get_syn_error;
     extern int error_lineno;
 %}
 
@@ -86,7 +86,7 @@ DELIM [ \t\n]+
 {NOTEALL} {yylval.type_node = NULL; }
 {CRLF} {yylval.type_node = NULL; yycolumn = 1;}
 {DELIM} {yylval.type_node = NULL;}
-. {yylval.type_node = NULL; get_error = 1; 
+. {yylval.type_node = NULL; get_syn_error = 1; 
     if(error_lineno != yylineno){error_lineno=yylineno;
     printf("Error type A at line %d: Mysterious characters \'%s\'\n", yylineno, yytext);}};
 %%

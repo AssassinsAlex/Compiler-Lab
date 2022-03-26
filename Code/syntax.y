@@ -1,7 +1,7 @@
 %locations
 %{
     extern int yylex (void);
-    #include "multitree_head.c"
+    #include "multitree.h"
     int prompt(char *msg);
     int yyerror(char *msg);
 
@@ -61,7 +61,7 @@
 
 %%
 /* High-level Definitions */
-Program : ExtDefList { $$ = trans_tree("Program", @$.first_line, 1, $1, @1.first_line);print_tree($$, 0);}
+Program : ExtDefList {$$ = trans_tree("Program", @$.first_line, 1, $1, @1.first_line);CST = $$;}
     ;
 ExtDefList : ExtDef ExtDefList {$$ = trans_tree("ExtDefList", @$.first_line, 2, $1, @1.first_line, $2, @2.first_line);}
     | /* empty */ {$$ = NULL;}
@@ -175,7 +175,7 @@ Args : Exp COMMA Args
 #include "lex.yy.c"
 
 int yyerror(char* msg) {
-    get_error = 1;
+    get_syn_error = 1;
     if(error_lineno != yylineno){
         printf("Error type B at line %d: %s\n", yylineno, msg);
         error_lineno = yylineno;

@@ -21,6 +21,7 @@ node_t *trans_tree(char *name, int lineno, int num, ...);
 node_t *insert_node(node_t *root, node_t *node);
 void print_tree(node_t *root, int depth);
 
-extern int get_error;
+extern int get_syn_error;
 extern int error_lineno;
+extern node_t* CST;
 #endif

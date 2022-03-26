@@ -1,0 +1,7 @@
+*.o
+syntax.output
+syntax.tab.c
+syntax.tab.h
+lex.yy.c
+parser
+~Makefile
