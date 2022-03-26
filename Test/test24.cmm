@@ -1,0 +1,15 @@
+// 4 error
+int main(int a, int b){
+    
+    if(a = 1e){
+        int a = 1;
+    }else{
+        b = 1;
+        c = ;
+    }
+
+    while(1e){
+        int a = b;
+    }else{
+    }
+}

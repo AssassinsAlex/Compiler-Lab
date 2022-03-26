@@ -1,0 +1,12 @@
+/* test struct ; 4 line error*/
+struct node {
+    struct node node_t;
+    int a, b;
+}
+int main(){
+    int a = ---b;
+    int a = a[a * (b+a)][fun(a, b, c+a[1])]
+    int b = a;
+    c = ;
+    a = ;
+}

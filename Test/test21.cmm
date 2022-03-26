@@ -1,0 +1,5 @@
+// test int i =; 2 error
+int main(){
+    int a = ;
+    b = 0a;
+}

@@ -1,0 +1,11 @@
+// 6 errors
+int a[1 ;
+int main(){
+    int a[1, 2];
+    int a = ;
+    c = 1o;
+    a = (1 + 2));
+    c = 1o;
+    a = (1 + 2;
+    a = 1o;
+}
