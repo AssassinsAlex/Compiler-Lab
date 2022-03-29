@@ -6,6 +6,13 @@
 #include <assert.h>
 #include <stdarg.h>
 
+enum {Program, ExtDefList, ExtDef, ExtDecList,
+    Specifier, StructSpecifier, OptTag, Tag,
+    VarDec, FunDec, VarList, ParamDec,
+    CompSt, StmtList, Stmt,
+    DefList, Def, DecList, Dec,
+    Exp, Args} terminal;
+
 typedef struct node_t{
     struct node_t* child;
     struct node_t* brother;
@@ -13,11 +20,13 @@ typedef struct node_t{
     char str[64];
     int is_token;
     int lineno;
+    int terminal_token;
+    int production_id;
 }node_t;
 
 node_t *create_token_node(char *name, char *str);
-node_t *create_other_node(char *name, int lineno);
-node_t *trans_tree(char *name, int lineno, int num, ...);
+node_t *create_other_node(char *name,int lineno, int terminal_token, int production_id);
+node_t *trans_tree(char *name, int terminal_token, int production_id, int lineno, int num, ...);
 node_t *insert_node(node_t *root, node_t *node);
 void print_tree(node_t *root, int depth);
 

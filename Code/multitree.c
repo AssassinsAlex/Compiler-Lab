@@ -4,8 +4,8 @@ int error_lineno = 0;
 int get_syn_error = 0;
 node_t *CST;
 
-node_t *trans_tree(char *name, int lineno, int num, ...){
-    node_t *root = create_other_node(name, lineno);
+node_t *trans_tree(char *name, int terminal_token, int production_id, int lineno, int num, ...){
+    node_t *root = create_other_node(name, lineno, terminal_token, production_id);
     va_list valist;
     va_start(valist, num);
 
@@ -31,9 +31,11 @@ node_t *create_token_node(char *name, char *str){
         strncpy(node->str, str, 64);
     node->is_token = 1;
     node->lineno = 0;
+    node->terminal_token = -1;
+    node->production_id = -1;
     return node;
 }
-node_t *create_other_node(char *name, int lineno){
+node_t *create_other_node(char *name, int lineno, int terminal_token, int production_id){
     node_t *node = malloc(sizeof(node_t));
     node->brother = NULL;
     node->child = NULL;
@@ -41,6 +43,8 @@ node_t *create_other_node(char *name, int lineno){
     memset(node->str, 0, sizeof(node->str));
     node->is_token = 0;
     node->lineno = lineno;
+    node->terminal_token = terminal_token;
+    node->production_id = production_id;
     return node;
 }
 

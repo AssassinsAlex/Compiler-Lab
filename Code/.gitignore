@@ -5,3 +5,6 @@ syntax.tab.h
 lex.yy.c
 parser
 ~Makefile
+/.idea/
+/.vscode/
+/cmake-build-debug/
