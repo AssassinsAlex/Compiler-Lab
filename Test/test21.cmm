@@ -1,5 +1,5 @@
 // test int i =; 2 error
-int main(){
+int main(int a, float b){
     int a = ;
     b = 0a;
 }

@@ -4,6 +4,19 @@
 #include <string.h>
 #include <assert.h>
 
+#define ASSERT_ON
+
+#ifdef ASSERT_ON
+#define Assert(expr) \
+    do{\
+        assert(expr);\
+    }while(0)
+#else
+#define Assert(expr) expr
+#endif
+
+
+
 #define NAME_SIZE 40
 /* symbol table */
 
@@ -13,7 +26,7 @@ struct Type_{
     enum { BASIC, ARRAY, STRUCTURE } kind;
     union{   
         // 基本类型
-        enum{INT, FLOAT} basic;
+        struct {enum{TINT, TFLOAT} type; union {int intval; float floatval;} val;}basic;
         // 数组类型信息包括元素类型与数组大小构成
         struct { Type elem; int size; } array;
         // 结构体类型信息是一个链表
@@ -31,9 +44,10 @@ typedef struct symbol_* symbol;
 
 struct symbol_
 {
-    enum {TYPE, FUNCTION} kind;
+    enum {VARIBLE, FUNCTION, STRUCT_TAG} kind;
     union {
         Type varible;
+        Type sturct_tag;
         struct {Type ret; FieldList parameter;} func;
     }u;
     char name[NAME_SIZE];

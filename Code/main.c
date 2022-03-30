@@ -20,7 +20,9 @@ int main(int argc, char** argv) {
     #endif
     yyrestart(f);
     yyparse();
-    if(!get_syn_error) 
-        print_tree(CST, 0);
+    if(!get_syn_error){
+        //print_tree(CST, 0);
+        SddProgram(CST);
+    }
     return 0;
 }

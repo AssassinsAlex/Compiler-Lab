@@ -20,7 +20,7 @@ typedef struct node_t{
     char str[64];
     int is_token;
     int lineno;
-    int terminal_token;
+    int token_val;
     int production_id;
 }node_t;
 
@@ -29,6 +29,9 @@ node_t *create_other_node(char *name,int lineno, int terminal_token, int product
 node_t *trans_tree(char *name, int terminal_token, int production_id, int lineno, int num, ...);
 node_t *insert_node(node_t *root, node_t *node);
 void print_tree(node_t *root, int depth);
+void SddProgram         (node_t *node);
+
+int str2int(char *str);
 
 extern int get_syn_error;
 extern int error_lineno;

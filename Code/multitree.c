@@ -31,7 +31,7 @@ node_t *create_token_node(char *name, char *str){
         strncpy(node->str, str, 64);
     node->is_token = 1;
     node->lineno = 0;
-    node->terminal_token = -1;
+    node->token_val = -1;
     node->production_id = -1;
     return node;
 }
@@ -43,32 +43,33 @@ node_t *create_other_node(char *name, int lineno, int terminal_token, int produc
     memset(node->str, 0, sizeof(node->str));
     node->is_token = 0;
     node->lineno = lineno;
-    node->terminal_token = terminal_token;
+    node->token_val = terminal_token;
     node->production_id = production_id;
     return node;
 }
 
 node_t *insert_node(node_t *root, node_t *node){
-    if(node)
-    if(!root->child){
-        root->child = node;
-    }else{
-        node_t *cur = root->child;
-        while(cur->brother != NULL){
-        cur = cur->brother;
-        }cur->brother = node;
-    };
+    if(node){
+        if(!root->child){
+            root->child = node;
+        }else{
+            node_t *cur = root->child;
+            while(cur->brother != NULL){
+            cur = cur->brother;
+            }cur->brother = node;
+        };
+    }
     return root;
 }
 
-void print_str(char *str){
+int str2int(char *str){
     if(str[0] == '0'){
         if(strlen(str) > 1 && (str[1] == 'x' || str[1] == 'X'))
-            printf("%ld\n", strtol(str, NULL, 16));
+            return  (int)strtol(str, NULL, 16);
         else
-            printf("%ld\n", strtol(str, NULL, 8));
+            return  (int)strtol(str, NULL, 8);
     }else
-        printf("%d\n", atoi(str));
+        return atoi(str);
 }
 
 void print_tree(node_t *root, int depth){
@@ -76,13 +77,12 @@ void print_tree(node_t *root, int depth){
         putchar(' ');putchar(' ');
     }
     if(!root->is_token)
-        printf("%s (%d)\n", root->name, root->lineno);
+        printf("%s, %d, %d, (%d)\n", root->name,root->token_val, root->production_id, root->lineno);
     else{
         if(!strcmp(root->name, "TYPE") | !strcmp(root->name, "ID"))
             printf("%s: %s\n",root->name, root->str);
         else if(!strcmp(root->name, "INT")){
-            printf("%s: ", root->name);
-            print_str(root->str);
+            printf("%s: %d\n", root->name, str2int(root->str));
         }
         else if(!strcmp(root->name, "FLOAT"))
             printf("%s: %f\n",root->name, atof(root->str));
