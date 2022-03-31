@@ -2,7 +2,7 @@
 %{
     extern int yylex (void);
     #include "multitree.h"
-    int prompt(char *msg);
+    void prompt(char *msg);
     int yyerror(char *msg);
 
 %}
@@ -69,7 +69,8 @@ ExtDefList : ExtDef ExtDefList {$$ = trans_tree("ExtDefList", ExtDefList, 0, @$.
 ExtDef : Specifier ExtDecList SEMI {$$ = trans_tree("ExtDef", ExtDef, 0, @$.first_line, 3, $1, @1.first_line, $2, @2.first_line, $3, @3.first_line);}
     | Specifier SEMI {$$ = trans_tree("ExtDef", ExtDef, 1, @$.first_line, 2, $1, @1.first_line, $2, @2.first_line);}
     | Specifier FunDec CompSt {$$ = trans_tree("ExtDef", ExtDef, 2, @$.first_line, 3, $1, @1.first_line, $2, @2.first_line, $3, @3.first_line);}
-    
+    | Specifier FunDec SEMI {$$ = trans_tree("ExtDef", ExtDef, 3, @$.first_line, 3, $1, @1.first_line, $2, @2.first_line, $3, @3.first_line);}
+
     | Specifier error SEMI {$$ = NULL;prompt("wrong extdef");}
     | error SEMI {$$ = NULL; prompt("wrong extdef");}
     | Specifier error{$$ = NULL; prompt("need ;");};
@@ -179,8 +180,8 @@ int yyerror(char* msg) {
     if(error_lineno != yylineno){
         printf("Error type B at line %d: %s\n", yylineno, msg);
         error_lineno = yylineno;
-    }
+    }return 0;
 }
-int prompt(char *msg) {
+void prompt(char *msg) {
     //fprintf(stderr, " %s\n", msg);
 }

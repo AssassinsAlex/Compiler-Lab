@@ -13,39 +13,155 @@
 
 #define CHILD(id, node) CHILD_##id(node)
 
-symbol add_var_symbol(char* name, Type inh){
-  symbol sym = malloc(sizeof(struct symbol_));
-  strncpy(sym->name, name, NAME_SIZE);
-  sym->kind = VARIBLE;
-  sym->u.varible = inh;
+static Type INT_Type_const = NULL;
+static Type FLOAT_Type_const = NULL;
 
-  list_insert_sym(sym);
-  hash_insert(sym);
-  return sym;
+Type malloc_type(int kind1, int kind2){
+    if(kind1 == BASIC){
+        if(kind2 == TINT){
+            if(!INT_Type_const){
+                INT_Type_const = malloc(sizeof(struct Type_));
+                INT_Type_const->kind = BASIC;
+                INT_Type_const->locked = true;
+                INT_Type_const->func_locked = false;
+                INT_Type_const->u.basic = TINT;
+            }return INT_Type_const;
+        }else if(kind2 == TFLOAT){
+            if(!FLOAT_Type_const){
+                FLOAT_Type_const = malloc(sizeof(struct Type_));
+                FLOAT_Type_const->kind = BASIC;
+                FLOAT_Type_const->locked = true;
+                FLOAT_Type_const->func_locked = false;
+                FLOAT_Type_const->u.basic= TFLOAT;
+            }return FLOAT_Type_const;
+        }else{
+            Assert(0);
+        }
+    }else{
+        Type ret = malloc(sizeof(struct Type_));
+        ret->kind = kind1;
+        ret->locked = false;
+        ret->func_locked = false;
+        return  ret;
+    }
 }
 
-symbol add_func_symbol(node_t *node, Type inh){
-    symbol sym = malloc(sizeof(struct symbol_));
-    strncpy(sym->name, node->name, NAME_SIZE);
-    sym->kind = FUNCTION;
-    sym->u.func.ret = inh;
-    sym->u.func.parameter = NULL;
+void free_type(Type type){
+    if(type->func_locked) return;
+    if(type->locked) return;
+    switch (type->kind) {
+        case BASIC:
+            // BASIC shouldn't free;
+            Assert(0);break;
+        case ARRAY:
+            free_type(type->u.array.elem);
+            free(type);
+            break;
+        case STRUCTURE:
+            free_field(type->u.structure);
+            free(type);
+            break;
+        default:
+            Assert(0);
+    }
+}
+int type_com(Type dst, Type src){
+    if(dst->kind != src->kind) return false;
+    switch (dst->kind) {
+        case BASIC:
+            return dst->u.basic == src->u.basic;
+        case ARRAY:
+            return array_com(dst, src);
+        case STRUCTURE:
+            return field_com(dst->u.structure, dst->u.structure);
+        default:
+            Assert(0);
+    }
+}
+int array_com(Type dst, Type src){
+    /* need to do */
+    return true;
+}
+FieldList creat_field(char *name, Type inh){
+    FieldList cur_field = malloc(sizeof(struct FieldList_));
+    strncpy(cur_field->name, name, NAME_SIZE);
+    cur_field->type = inh;
+    cur_field->tail = NULL;
+    return cur_field;
+}
 
+void free_field(FieldList field){
+    if(field == NULL) return;
+    free_field(field->tail);
+    free_type(field->type);
+    free(field);
+}
+Type find_field(char *name, FieldList field){
+    while(field != NULL){
+        if(!strncmp(name, field->name, NAME_SIZE))
+            return field->type;
+        field = field->tail;
+    }return NULL;
+}
+int field_com(FieldList dst, FieldList src){
+    if(dst == NULL || src == NULL) return dst == src;
+    else{
+        if(type_com(dst->type, src->type))
+            return field_com(dst->tail, src->tail);
+        return false;
+    }
+}
+
+symbol add_symbol(char* name, Type inh, int sym_kind){
+    symbol sym = malloc(sizeof(struct symbol_));
+    strncpy(sym->name, name, NAME_SIZE);
+    sym->kind = sym_kind;
+    switch (sym_kind) {
+      case FUNCTION:
+          sym->u.func.defined = false;
+          sym->u.func.ret = inh;
+          sym->u.func.parameter = NULL;
+          break;
+      case VARIABLE:
+          sym->u.variable = inh;
+          break;
+      case STRUCT_TAG:
+          sym->u.struct_tag = inh;
+          break;
+      default:
+          Assert(0);
+    }
     list_insert_sym(sym);
     hash_insert(sym);
     return sym;
+}
+void free_symbol(symbol sym){
+    switch (sym->kind) {
+        case VARIABLE:
+            free_type(sym->u.variable);
+            break;
+        case FUNCTION:
+            // function should not free;
+            Assert(0);break;
+        case STRUCT_TAG:
+            sym->u.struct_tag->locked = false;
+            free_type(sym->u.struct_tag);
+            break;
+        default:
+            Assert(0);
+    }
 }
 
 unsigned int hash_pjw(char *name){
     unsigned int val = 0, i;
     for(; *name; ++name){
         val = (val << 2) + *name;
-        if((i = val) & ~HASH_SIZE) val = (val ^ (i >> 12));
+        if((i = val) & ~HASH_SIZE) val = (val ^ (i >> 12)) & HASH_SIZE;
     }
     return val;
 }
 
-symbol symbol_list[HASH_SIZE];
+symbol symbol_list[HASH_SIZE] = {0};
 
 void hash_insert(symbol sym){
     unsigned int key = hash_pjw(sym->name);
@@ -108,7 +224,7 @@ void list_pop(){
         symbol tmp = list_head->sym;
         list_head->sym = tmp->list_nxt;
         hash_delete(tmp);
-        free(tmp);
+        free_symbol(tmp);
     }
     list_node tmp = list_head;
     list_head = list_head->nxt;
@@ -116,27 +232,28 @@ void list_pop(){
     Assert(list_head);
 }
 
-void SddProgram         (node_t *node);
-void SddExtDefList      (node_t *node);
-void SddExtDef          (node_t *node);
-void SddExtDecList      (node_t *node, Type inh);
-Type SddSpecifier       (node_t *node);
-Type SddStructSpecifier (node_t *node);
-void SddVarDec          (node_t *node, Type inh, Type structure);
-Type SddFunDec          (node_t *node, Type inh);
-void SddVarList         (node_t *node, Type structure);
-void SddParamDec        (node_t *node, Type structure);
-void SddDefList         (node_t *node, Type structure);
-void SddDef             (node_t *node, Type structure);
-void SddDecList         (node_t *node, Type inh, Type structure);
-void SddDec             (node_t *node, Type inh, Type structure);
-void SddCompSt          (node_t *node, Type structure);
-void SddStmtList        (node_t *node);
-Type SddExp             (node_t *node, Type inh);
+void    SddProgram          (node_t *node);
+void    SddExtDefList       (node_t *node);
+void    SddExtDef           (node_t *node);
+void    SddExtDecList       (node_t *node, Type inh);
+Type    SddSpecifier        (node_t *node);
+Type    SddStructSpecifier  (node_t *node);
+void    SddVarDec           (node_t *node, Type inh, Type structure);
+void    SddFunDef           (node_t *node, Type inh);
+void    SddFunDec           (node_t *node, Type inh);
+void    SddVarList          (node_t *node);
+void    SddParamDec         (node_t *node);
+void    SddDefList          (node_t *node, Type structure);
+void    SddDef              (node_t *node, Type structure);
+void    SddDecList          (node_t *node, Type inh, Type structure);
+void    SddDec              (node_t *node, Type inh, Type structure);
+void    SddCompSt           (node_t *node, int isFun);
+void    SddStmtList         (node_t *node);
+Type    SddExp              (node_t *node, Type inh);
 
-Type SddType            (node_t *node);
+Type    SddType             (node_t *node);
 
-Type Array              (Type inh, int size);
+Type    SddArray            (Type inh, int size);
 
 void SddProgram(node_t* node){
     Assert(node->token_val == Program);
@@ -156,21 +273,30 @@ void SddExtDefList(node_t *node){
 // ExtDef.syn = Specifier.syn
 void SddExtDef(node_t *node){ 
     Assert(node->token_val == ExtDef);
-    Type syn;
+
     switch (node->production_id)
     {
     case 0:
-        syn = SddSpecifier(CHILD(1, node));
+    {
+        Type syn = SddSpecifier(CHILD(1, node));
         SddExtDecList(CHILD(2, node), syn);
         break;
+    }
     case 1:
-        syn = SddSpecifier(CHILD(1, node));
+        SddSpecifier(CHILD(1, node));
         break;
     case 2:
-        syn = SddSpecifier(CHILD(1, node));
-        syn = SddFunDec(CHILD(2, node), syn);
-        SddCompSt(CHILD(3, node), syn);
+    {
+        Type syn = SddSpecifier(CHILD(1, node));
+        SddFunDef(CHILD(2, node), syn);
         break;
+    }
+    case 3:
+    {
+        Type syn = SddSpecifier(CHILD(1, node));
+        SddFunDec(CHILD(2, node), syn);
+        break;
+    }
     default:
         Assert(0);
         break;
@@ -204,7 +330,7 @@ Type SddSpecifier(node_t *node){
         return SddStructSpecifier(CHILD(1, node));
     default:
         Assert(0);
-        break;
+        return NULL;
     }
 }
 
@@ -214,28 +340,33 @@ Type SddStructSpecifier(node_t *node){
     {
     case 0:
     {
-        Type syn = malloc(sizeof(struct Type_));
-        syn->kind = STRUCTURE;
-        syn->u.structure = NULL;
-        if(CHILD(5, node) == NULL)
+        Type syn;
+
+        if(CHILD(5, node) == NULL){
+            syn = malloc_type(STRUCTURE, 0);
+            syn->u.structure = NULL;
             SddDefList(CHILD(3, node), syn);
+        }
         else{
+            syn = malloc_type(STRUCTURE, 0);
+            syn->locked = true;
+            syn->u.structure = NULL;
             SddDefList(CHILD(4, node), syn);
-            add_var_symbol(CHILD(1, CHILD(2, node))->str, syn)->kind = STRUCT_TAG;
+            add_symbol(CHILD(1, CHILD(2, node))->str, syn, STRUCT_TAG);
         }
         return syn;
     }
     case 1:
     {
-        symbol syn = hash_find(CHILD(1, CHILD(2, node))->name);
+        symbol syn = hash_find(CHILD(1, CHILD(2, node))->str);
 
         /* some error func need to do */
 
-        return syn->u.sturct_tag;
+        return syn->u.struct_tag;
     }
     default:
         Assert(0);
-        break;
+        return NULL;
     }
 }
 
@@ -249,80 +380,134 @@ void SddVarDec(node_t *node, Type inh, Type structure){
         if(structure == NULL){
             symbol sym = hash_find(CHILD(1, node)->str);
             if(sym != NULL){
-                printf("error: %s, redefined\n", CHILD(1, node)->name);
+                //semanitic_error(1, node->lineno, "redefined");
             }else{
-                add_var_symbol(CHILD(1, node)->str, inh);
+                add_symbol(CHILD(1, node)->str, inh, VARIABLE);
             }
         }else{
             Assert(structure->kind == STRUCTURE);
-            FieldList cur_field = malloc(sizeof(struct FieldList_));
-            strncpy(cur_field->name, CHILD(1,node)->name, NAME_SIZE);
-            cur_field->type = inh;
-            cur_field->tail = structure->u.structure->tail;
-            structure->u.structure->tail = cur_field;
+            FieldList cur_field = creat_field(CHILD(1, node)->str, inh);
+            if(find_field(cur_field->name, structure->u.structure))
+                semanitic_error(15, CHILD(1, node)->lineno ,"redifined the variable in one field");
+            cur_field->tail = structure->u.structure;
+            structure->u.structure = cur_field;
         }
         break;
     }   
     case 1:
     {
-        Type syn = Array(inh, str2int(CHILD(3, node)->str));
+        Type syn = SddArray(inh, str2int(CHILD(3, node)->str));
         SddVarDec(CHILD(1, node), syn, structure);
         break;
     }
     default:
         Assert(0);
-        break;
+    }
+}
+void fun_unlock(FieldList field){
+    if(field == NULL)
+        return;
+    else{
+        field->type->func_locked = false;
+        fun_unlock(field->tail);
     }
 }
 
-Type SddFunDec(node_t *node, Type inh){
+FieldList SddFunVar_(node_t *node, Type inh){
     Assert(node->token_val == FunDec);
-    symbol sym = add_func_symbol(CHILD(1, node), inh);
-    /* 函数暂时借助 Type Structure 的list来存放函数表 */
-    switch (node->production_id)
-    {
-    case 0:
-    {   
-        Type parlist = malloc(sizeof(struct Type_));
-        SddVarList(CHILD(3, node), parlist);
-        sym->u.func.parameter = parlist->u.structure;
-        return parlist;
-    }   
-    case 1:
-        sym->u.func.parameter = NULL;
-        return NULL;
-    default:
-        Assert(0);
-        break;
-    }
+    Assert(node->production_id == 0 || node->production_id == 1);
+    list_insert(list_create());
+
+    FieldList varlist = NULL;
+    if(node->production_id == 0) {
+        SddVarList(CHILD(3, node));
+        symbol cur = list_head->sym;
+        while(cur){
+            Assert(cur->kind != FUNCTION);
+            cur->u.variable->func_locked = true;
+            if(cur->kind == VARIABLE) {
+                FieldList field = creat_field(cur->name, cur->u.variable);
+                field->tail = varlist;
+                varlist = field;
+            }
+            cur = cur->list_nxt;
+        }
+    }return varlist;
 }
 
-void SddVarList(node_t* node, Type structure){
+symbol SddFun_(node_t *node, Type inh){
+    Assert(node->token_val == FunDec);
+    symbol OldSym = hash_find(CHILD(1, node)->str);
+    symbol funsym = NULL;
+    if(OldSym != NULL){
+        if(!type_com(OldSym->u.func.ret, inh)) {
+            semanitic_error(19, node->lineno, "function conflict");
+            return NULL;
+        }free_type(inh);
+        FieldList field = SddFunVar_(node, inh);
+        if(!field_com(OldSym->u.func.parameter, field)) {
+            semanitic_error(19, node->lineno, "function conflict");
+            list_pop();
+            fun_unlock(field);
+            free_field(field);
+            return NULL;
+        }else{
+            fun_unlock(OldSym->u.func.parameter);
+            free_field(OldSym->u.func.parameter);
+            OldSym->u.func.parameter = field;
+            return OldSym;
+        }
+    }else{
+        funsym = add_symbol(CHILD(1, node)->str, inh, FUNCTION);
+        inh->func_locked = true;
+        FieldList field = SddFunVar_(node, inh);
+        funsym->u.func.parameter = field;
+        return funsym;
+    }
+}
+void SddFunDef(node_t *node, Type inh){
+    Assert(node->token_val == FunDec);
+    symbol OldSym = hash_find(CHILD(1, node)->str);
+    if(OldSym && (OldSym->kind != FUNCTION ||  OldSym->u.func.defined)) {
+        semanitic_error(4, node->lineno, "redefined function");
+        return;
+    }symbol funsym =  SddFun_(node, inh);
+    if(funsym){
+        funsym->u.func.defined = true;
+        SddCompSt(node->brother, true);
+    }
+
+}
+void SddFunDec(node_t *node, Type inh){
+    Assert(node->token_val == FunDec);
+    symbol OldSym = hash_find(CHILD(1, node)->str);
+    if(OldSym && OldSym->kind != FUNCTION) {
+        semanitic_error(4, node->lineno, "redefined function");
+        return;
+    }if(SddFun_(node, inh)){
+        list_pop();
+    }
+
+}
+
+
+void SddVarList(node_t* node){
     Assert(node->token_val == VarList);
-    SddParamDec(CHILD(1, node), structure);
-    switch (node->production_id)
-    {
-    case 0:
-        SddVarList(CHILD(3, node), structure);
-        break;
-    case 1:
-        break;
-    default:
-        Assert(0);
-        break;
-    }
+    Assert(node->production_id == 0 || node->production_id == 1);
+    SddParamDec(CHILD(1, node));
+    if(node->production_id == 0)
+        SddVarList(CHILD(3, node));
 }
 
-void SddParamDec(node_t *node, Type structure){
+void SddParamDec(node_t *node){
     Assert(node->token_val == ParamDec);
     Type syn = SddSpecifier(CHILD(1, node));
-    SddVarDec(CHILD(2, node), syn, structure);
+    SddVarDec(CHILD(2, node), syn, NULL);
 }
 
 void SddDefList(node_t *node, Type structure){
     if(node == NULL) return;
     Assert(node->token_val == DefList);
-    if(node == NULL) return;
     SddDef(CHILD(1, node), structure);
     SddDefList(CHILD(2, node), structure);
 }
@@ -348,12 +533,15 @@ void SddDecList(node_t *node, Type inh, Type structure){
     }
     default:
         Assert(0);
-        break;
     }
 }
 
 void SddDec(node_t *node, Type inh, Type structure){
     Assert(node->token_val == Dec);
+    if(structure != NULL && node->production_id == 1){
+        semanitic_error(15, node->lineno, "can't initail the variable in struct");
+    }
+   
     switch (node->production_id)
     {
     case 0:
@@ -372,18 +560,21 @@ void SddDec(node_t *node, Type inh, Type structure){
     }
 }
 
-void SddCompSt(node_t *node, Type structure){
+void SddCompSt(node_t *node, int isFun){
     Assert(node->token_val == CompSt);
-    list_insert(list_create());
-    if(structure){
-        FieldList cur = structure->u.structure;
-        while(cur){
-            add_var_symbol(cur->name, cur->type);
-            cur = cur->tail;
+    if(!isFun)
+        list_insert(list_create());
+    if(CHILD(3, node) != NULL){
+        if(CHILD(4, node) != NULL){
+            SddDefList(CHILD(2, node), NULL);
+            SddStmtList(CHILD(3, node));
+        }else{
+            if(CHILD(2,node)->token_val == DefList)
+                SddDefList(CHILD(2, node), NULL);
+            else
+                SddStmtList(CHILD(2, node));
         }
     }
-    SddDefList(CHILD(2, node), NULL);
-    SddStmtList(CHILD(3, node));
     list_pop();
 }
 
@@ -396,36 +587,25 @@ Type SddExp(node_t *node, Type inh){
     return NULL;
 }
 
-static Type INT_Type_const = NULL;
-static Type FLOAT_Type_const = NULL;
-
 Type SddType(node_t *node){
     Assert(!strcmp(node->name, "TYPE"));
     if(!strcmp(node->str, "int")){
-        if(!INT_Type_const){
-            INT_Type_const = malloc(sizeof(struct Type_));
-            INT_Type_const->kind = BASIC;
-            INT_Type_const->u.basic.type = TINT;
-            INT_Type_const->u.basic.val.intval = 0;
-        }return INT_Type_const;
+        return malloc_type(BASIC, TINT);
     }else if(!strcmp(node->str, "float")){
-        if(!FLOAT_Type_const){
-            FLOAT_Type_const = malloc(sizeof(struct Type_));
-            FLOAT_Type_const->kind = BASIC;
-            FLOAT_Type_const->u.basic.type = TFLOAT;
-            FLOAT_Type_const->u.basic.val.floatval = 0;
-        }return FLOAT_Type_const;
+        return malloc_type(BASIC, TFLOAT);
     }else{
         Assert(0);
         return NULL;
     }
 }
 
-Type Array(Type inh, int size){
-    Type arr = malloc(sizeof(struct Type_));
-    arr->kind = ARRAY;
+Type SddArray(Type inh, int size){
+    Type arr = malloc_type(ARRAY, 0);
     arr->u.array.elem = inh;
     arr->u.array.size = size;
     return arr;
 }
 
+void semanitic_error(int errorno, int lineno, char* str){
+    printf("Error type %d at Line %d: %s.\n", errorno, lineno, str);
+}
