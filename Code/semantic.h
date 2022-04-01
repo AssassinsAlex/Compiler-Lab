@@ -3,17 +3,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include "multitree.h"
 
 #define ASSERT_ON
 
 #ifdef ASSERT_ON
+#define TODO() printf("need to do\n"); //Assert(0);
 #define Assert(expr) \
     do{\
         assert(expr);\
     }while(0)
 #else
 #define Assert(expr) if(expr) {};
+#define TODO() printf("need to do\n");
 #endif
+
 
 #define false 0
 #define true 1
@@ -66,11 +70,14 @@ struct symbol_
         struct {int defined; Type ret; FieldList parameter;} func;
     }u;
     char name[NAME_SIZE];
+    int first_lineno;
+    void *belong;
     symbol hash_nxt;
     symbol list_nxt;
 };
 
-symbol add_symbol(char* name, Type inh, int sym_kind);
+
+symbol add_symbol(node_t *node, Type inh, int sym_kind);
 void free_symbol(symbol sym);
 
 /* hash table */
@@ -93,6 +100,40 @@ void list_insert(list_node node);
 void list_insert_sym(symbol sym);
 void list_pop();
 
+void    SddProgram          (node_t *node);
+void    SddExtDefList       (node_t *node);
+void    SddExtDef           (node_t *node);
+void    SddExtDecList       (node_t *node, Type inh);
+Type    SddSpecifier        (node_t *node);
+Type    SddStructSpecifier  (node_t *node);
+void    SddVarDec           (node_t *node, Type inh, Type structure);
+void    SddFunDef           (node_t *node, Type inh);
+void    SddFunDec           (node_t *node, Type inh);
+void    SddVarList          (node_t *node);
+void    SddParamDec         (node_t *node);
+void    SddDefList          (node_t *node, Type structure);
+void    SddDef              (node_t *node, Type structure);
+void    SddDecList          (node_t *node, Type inh, Type structure);
+void    SddDec              (node_t *node, Type inh, Type structure);
+void    SddCompSt           (node_t *node, int isFun, Type ret);
+void    SddStmtList         (node_t *node, Type ret);
+void    SddStmt             (node_t *node, Type ret);
+Type    SddExp              (node_t *node, Type inh, int isLeft);
+Type    SddId               (node_t *node);
+Type    SddType             (node_t *node);
+Type    SddArray            (Type inh, int size);
+void    SddReturn           (node_t *node, Type ret);
+Type    SddExpFun           (node_t *node, int isLeft);
+Type    SddExpArray         (node_t *node, int isLeft);
+Type    SddExpStruct        (node_t *node, int isLeft);
+
+Type    CheckInt2           (Type type1, Type type2);
+Type    CheckInt1           (Type type);
+Type    CheckAssign         (Type type1, Type type2);
+Type    CheckArithm2        (Type type1, Type type2);
+Type    CheckArithm1        (Type type);
+void    CheckFun            ();
 
 void semanitic_error(int errorno, int lineno, char* str);
+
 #endif

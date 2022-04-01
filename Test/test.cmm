@@ -1,24 +1,18 @@
 struct a{
-    int a1;
-    int a2;
-};
-struct b{
-    int b1;
-    int b2;
+    int a;
+    int b;
 };
 
-int func1(struct a a1, int b){
-    int c = a;
-}
-int func1(struct a a2, int c);
-int func2();
+struct b{
+    int a;
+    int b;
+};
+
+int func(struct a x);
+int func(struct b x){}
 
 int main(){
-    struct a1{
-        int a;
-        int b[4][5];
-        struct c{
-            int c;
-        } d;
-    }b1;
+    int a;
+    int b;
+    (a[1]) = 1;
 }
