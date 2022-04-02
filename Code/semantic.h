@@ -125,6 +125,7 @@ void    SddCompSt           (node_t *node, int isFun, Type ret);
 void    SddStmtList         (node_t *node, Type ret);
 void    SddStmt             (node_t *node, Type ret);
 Type    SddExp              (node_t *node, int isLeft);
+void    SddArgs             (node_t *node, FieldList ArgList);
 Type    SddId               (node_t *node);
 Type    SddType             (node_t *node);
 Type    SddArray            (Type inh, int size);

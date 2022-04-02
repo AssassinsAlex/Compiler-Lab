@@ -69,6 +69,10 @@ void type_free(Type type){
 }
 
 int type_com(Type dst, Type src){
+    if(dst == NULL || src == NULL){
+        // type can't be NULL
+        return src == dst;
+    }
     if(dst->kind != src->kind) return false;
     switch (dst->kind) {
         case BASIC:
@@ -691,31 +695,77 @@ Type SddExp(node_t *node, int isLeft){
     }
 }
 
+void SddArgs(node_t *node, FieldList ArgList){
+    // error 9
+    Assert(node->token_val == Args);
+    Assert(node->production_id == 0 || node->production_id == 1);
+    Type syn = SddExp(CHILD(1, node), false);
+    if(ArgList == NULL || !type_com(ArgList->type, syn))
+        semantic_error(9, node->lineno, "the type of arg conflict");
+    if(node->production_id == 0)
+        SddArgs(CHILD(3, node), ArgList->tail);
+}
+
 Type SddExpFun(node_t *node, int isLeft){
     // 检测error 2;
-    // error 9
     // error 11
-    TODO();
-    return NULL;
+    symbol sym = hash_find(CHILD(1, node)->str);
+    if(sym == NULL) {
+        semantic_error(2, node->lineno, "function used but not declare");
+        return NULL;
+    }
+    if(sym->kind != FUNCTION) {
+        semantic_error(11, node->lineno, "variable can't use (..)");
+        return NULL;
+    }
+    if(!sym->u.func.defined) {
+        semantic_error(2, node->lineno, "function used but not define");
+        return NULL;
+    }
+    Assert(node->production_id == 11 || node->production_id == 12);
+    if(node->production_id == 11)
+        SddArgs(CHILD(3, node), sym->u.func.parameter);
+    return sym->u.func.ret;
 }
 
 Type SddExpArray(node_t *node, int isLeft){
-    // 检测10, 12
-    TODO();
-    return NULL;
+    Type syn1 = SddExp(CHILD(1, node), isLeft);
+    if(syn1->kind != ARRAY){
+        semantic_error(10, CHILD(1, node)->lineno, "use LB RB but not ARRAY variable");
+        return NULL;
+    }Type syn2 = SddExp(CHILD(3, node), false);
+    if(syn2->kind != BASIC || syn2->u.basic != TINT) {
+        semantic_error(12, CHILD(3, node)->lineno, "[...] use not int variable");
+        return NULL;
+    }
+    return syn1->u.array.elem;
 }
 
 Type SddExpStruct(node_t *node, int isLeft){
     // 检测13 14
-    TODO();
-    return NULL;
+    Type syn1 =  SddExp(CHILD(1, node), isLeft);
+    if(syn1->kind != STRUCTURE) {
+        semantic_error(13, CHILD(1, node)->lineno, "use dot but not structure");
+        return NULL;
+    }Type syn2 = field_find(CHILD(3, node)->str, syn1->u.structure);
+    if(syn2 == NULL){
+        semantic_error(14,CHILD(3, node)->lineno, "the field has no match name");
+    }
+    return syn2;
 }
 
 Type SddId(node_t *node){
     // 检测 error 1;
-
-    TODO();
-    return NULL;
+    symbol sym = hash_find(node->str);
+    if(sym == NULL){
+        semantic_error(1, node->lineno, "variable used but not define");
+        return NULL;
+    }
+    if(sym->kind == FUNCTION || sym->kind == STRUCT_TAG){
+        semantic_error(1, node->lineno, "not a variable");
+        return NULL;
+    }
+    return sym->u.variable;
 }
 
 Type SddType(node_t *node){
