@@ -8,14 +8,14 @@
 #define ASSERT_ON
 
 #ifdef ASSERT_ON
-#define TODO() printf("need to do\n"); //Assert(0);
+#define TODO() printf("need to do\n"); //Assert(0)
 #define Assert(expr) \
     do{\
         assert(expr);\
     }while(0)
 #else
 #define Assert(expr) if(expr) {};
-#define TODO() printf("need to do\n");
+#define TODO() printf("need to do\n")
 #endif
 
 
@@ -54,12 +54,7 @@ struct FieldList_{
     FieldList tail;
 };
 
-Type malloc_type(int kind1, int kind2);
-void free_type(Type type);
-int array_com(Type dst, Type src);
-FieldList creat_field(char *name, Type inh);
-void free_field(FieldList field);
-int field_com(FieldList dst, FieldList src);
+
 typedef struct symbol_* symbol;
 struct symbol_
 {
@@ -77,16 +72,10 @@ struct symbol_
 };
 
 
-symbol add_symbol(node_t *node, Type inh, int sym_kind);
-void free_symbol(symbol sym);
-
 /* hash table */
 #define HASH_SIZE 0x3fff
 extern symbol symbol_list[HASH_SIZE];
-unsigned int hash_pjw(char *name);
-void hash_insert(symbol sym);
-int hash_delete(symbol sym);
-symbol hash_find(char* name);
+
 
 /* orthogonal list */
 typedef struct list_node_* list_node;
@@ -94,11 +83,28 @@ struct list_node_{
     symbol sym;
     list_node nxt;
 };
-extern list_node list_head;
-list_node list_create();
-void list_insert(list_node node);
-void list_insert_sym(symbol sym);
-void list_pop();
+Type            type_malloc     (int kind1, int kind2);
+void            type_free       (Type type);
+int             type_com        (Type dst, Type src);
+int             array_com       (Type dst, Type src);
+
+FieldList       field_malloc     (char *name, Type inh);
+void            field_free      (FieldList field);
+Type            field_find      (char *name, FieldList field);
+int             field_com       (FieldList dst, FieldList src);
+
+symbol          symbol_add      (node_t *node, Type inh, int sym_kind);
+void            symbol_free     (symbol sym);
+
+unsigned int    hash_pjw        (char *name);
+void            hash_insert     (symbol sym);
+symbol          hash_find       (char* name);
+int             hash_delete     (symbol sym);
+
+list_node       list_create     ();
+void            list_insert     (list_node node);
+void            list_insert_sym (symbol sym);
+void            list_pop        ();
 
 void    SddProgram          (node_t *node);
 void    SddExtDefList       (node_t *node);
@@ -118,7 +124,7 @@ void    SddDec              (node_t *node, Type inh, Type structure);
 void    SddCompSt           (node_t *node, int isFun, Type ret);
 void    SddStmtList         (node_t *node, Type ret);
 void    SddStmt             (node_t *node, Type ret);
-Type    SddExp              (node_t *node, Type inh, int isLeft);
+Type    SddExp              (node_t *node, int isLeft);
 Type    SddId               (node_t *node);
 Type    SddType             (node_t *node);
 Type    SddArray            (Type inh, int size);
@@ -134,6 +140,6 @@ Type    CheckArithm2        (Type type1, Type type2);
 Type    CheckArithm1        (Type type);
 void    CheckFun            ();
 
-void semanitic_error(int errorno, int lineno, char* str);
+void semantic_error(int errorno, int lineno, char* str);
 
 #endif
