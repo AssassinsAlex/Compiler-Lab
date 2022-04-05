@@ -22,7 +22,7 @@ Type type_malloc(int kind1, int kind2){
     if(kind1 == BASIC){
         if(kind2 == TINT){
             if(!INT_Type_const){
-                INT_Type_const = malloc(sizeof(struct Type_));
+                INT_Type_const = (Type)malloc(sizeof(struct Type_));
                 INT_Type_const->kind = BASIC;
                 INT_Type_const->locked = true;
                 INT_Type_const->func_locked = false;
@@ -30,7 +30,7 @@ Type type_malloc(int kind1, int kind2){
             }return INT_Type_const;
         }else if(kind2 == TFLOAT){
             if(!FLOAT_Type_const){
-                FLOAT_Type_const = malloc(sizeof(struct Type_));
+                FLOAT_Type_const = (Type)malloc(sizeof(struct Type_));
                 FLOAT_Type_const->kind = BASIC;
                 FLOAT_Type_const->locked = true;
                 FLOAT_Type_const->func_locked = false;
@@ -40,7 +40,7 @@ Type type_malloc(int kind1, int kind2){
             Assert(0);
         }
     }else{
-        Type ret = malloc(sizeof(struct Type_));
+        Type ret = (Type)malloc(sizeof(struct Type_));
         ret->kind = kind1;
         ret->locked = false;
         ret->func_locked = false;
@@ -87,6 +87,7 @@ int type_com(Type dst, Type src){
 }
 
 int array_com(Type dst, Type src){
+    //[2][3]  [3][2]
     int dim1 = 0, size1 = 1, dim2 = 0, size2 = 1;
     while (dst->kind == ARRAY){
         dim1++;
@@ -104,7 +105,7 @@ int array_com(Type dst, Type src){
 }
 
 FieldList field_malloc(char *name, Type inh){
-    FieldList cur_field = malloc(sizeof(struct FieldList_));
+    FieldList cur_field = (FieldList)malloc(sizeof(struct FieldList_));
     strncpy(cur_field->name, name, NAME_SIZE);
     cur_field->type = inh;
     cur_field->tail = NULL;
@@ -138,7 +139,7 @@ int field_com(FieldList dst, FieldList src){
 symbol symbol_add(node_t *node, Type inh, int sym_kind){
     if(inh == NULL) return NULL;
     symbol OldSym = hash_find(node->str);
-    if(OldSym && OldSym->belong == list_head){
+    if(OldSym && OldSym->belong == (void *)list_head){
         switch (sym_kind) {
             case FUNCTION:
                 Assert(0);break;
@@ -152,7 +153,7 @@ symbol symbol_add(node_t *node, Type inh, int sym_kind){
                 Assert(0);break;
         }return NULL;
     }
-    symbol sym = malloc(sizeof(struct symbol_));
+    symbol sym = (symbol)malloc(sizeof(struct symbol_));
     strncpy(sym->name, node->str, NAME_SIZE);
     sym->kind = sym_kind;
     sym->first_lineno  = node->lineno;
@@ -251,7 +252,7 @@ int hash_delete(symbol sym){
 /* orthogonal list */
 
 list_node list_create(){
-    list_node new = malloc(sizeof(struct list_node_));
+    list_node new = (list_node)malloc(sizeof(struct list_node_));
     new->sym = NULL;
     new->nxt = NULL;
     return new;
@@ -284,7 +285,7 @@ void list_pop(){
 
 /* ============================================ */
 
-void SddProgram(node_t* node){
+void SddProgram(node_t *node){
     Assert(node->token_val == Program);
     /* 在此初始化一些变量 */
     list_insert(list_create());
@@ -365,7 +366,7 @@ Type SddStructSpecifier(node_t *node){
     case 0:
     {
         Type syn;
-        if(CHILD(5, node) == NULL){
+        if(CHILD(5, node) == NULL){     //5?
             syn = type_malloc(STRUCTURE, 0);
             syn->u.structure = NULL;
             SddDefList(CHILD(3, node), syn);
@@ -374,7 +375,7 @@ Type SddStructSpecifier(node_t *node){
             syn = type_malloc(STRUCTURE, 0);
             syn->locked = true;
             syn->u.structure = NULL;
-            SddDefList(CHILD(4, node), syn);
+            SddDefList(CHILD(4, node), syn);    //4?
             if(!symbol_add(CHILD(1, CHILD(2, node)), syn, STRUCT_TAG)){
                 type_free(syn);
                 syn = NULL;
@@ -386,7 +387,7 @@ Type SddStructSpecifier(node_t *node){
     {
         symbol syn = hash_find(CHILD(1, CHILD(2, node))->str);
         if(syn == NULL || syn->kind != STRUCT_TAG){
-            semantic_error(17, CHILD(1, CHILD(2, node))->lineno, "struct no defined");
+            semantic_error(17, CHILD(1, CHILD(2, node))->lineno, "struct not defined");
             return NULL;
         }
         return syn->u.struct_tag;
@@ -611,16 +612,16 @@ void SddStmt(node_t *node, Type ret){
             SddReturn(CHILD(2, node), ret);
             break;
         case 3:
-            CheckInt1(SddExp(CHILD(3, node), false));
+            CheckInt1(SddExp(CHILD(3, node), false), node->lineno);
             SddStmt(CHILD(5, node), ret);
             break;
         case 4:
-            CheckInt1(SddExp(CHILD(3, node), false));
+            CheckInt1(SddExp(CHILD(3, node), false), node->lineno);
             SddStmt(CHILD(5, node), ret);
             SddStmt(CHILD(7, node), ret);
             break;
         case 5:
-            CheckInt1(SddExp(CHILD(3, node), false));
+            CheckInt1(SddExp(CHILD(3, node), false), node->lineno);
             SddStmt(CHILD(5, node), ret);
             break;
         default:
@@ -651,7 +652,7 @@ Type SddExp(node_t *node, int isLeft){
         {
             Type type1 = SddExp(CHILD(1, node), true);
             Type type2 = SddExp(CHILD(3, node), false);
-            return CheckAssign(type1, type2);
+            return CheckAssign(type1, type2, node->lineno);
         }
         case 1:
         case 2:
@@ -659,7 +660,7 @@ Type SddExp(node_t *node, int isLeft){
         {
             Type type1 = SddExp(CHILD(1, node), false);
             Type type2 = SddExp(CHILD(3, node), false);
-            return CheckInt2(type1, type2);
+            return CheckInt2(type1, type2, CHILD(2, node), node->lineno);
         }
         case 4:
         case 5:
@@ -668,14 +669,14 @@ Type SddExp(node_t *node, int isLeft){
         {
             Type type1 = SddExp(CHILD(1, node), false);
             Type type2 = SddExp(CHILD(3, node), false);
-            return CheckArithm2(type1, type2);
+            return CheckArithm2(type1, type2, node->lineno);
         }
         case 8:
             return SddExp(CHILD(2, node), isLeft);
         case 9:
-            return CheckArithm1(SddExp(CHILD(2, node), false));
+            return CheckArithm1(SddExp(CHILD(2, node), false), node->lineno);
         case 10:
-            return CheckInt1(SddExp(CHILD(1, node), false));
+            return CheckInt1(SddExp(CHILD(1, node), false), node->lineno);
         case 11:
         case 12:
             return SddExpFun(node, isLeft);
@@ -789,29 +790,52 @@ Type SddArray(Type inh, int size){
 
 void SddReturn(node_t *node, Type ret){
     // 检测类型8
-    TODO();
+    symbol sym = hash_find(node->str);
+    if (!type_com(ret, sym->u.variable))
+        semantic_error(8, node->lineno, "function return type not match");
+    // TODO();
 }
 
-Type CheckInt2(Type type1, Type type2){
-    TODO();
+Type CheckInt2(Type type1, Type type2, node_t *comp, int lineno){
+    CheckInt1(type1, lineno);
+    CheckInt1(type2, lineno);
+    if (type1->u.basic != TINT || type2->u.basic != TINT)
+        semantic_error(7, lineno, "not integer");
+    else
+        return INT_Type_const;
     return NULL;
 }
-Type CheckInt1(Type type){
-    TODO();
+Type CheckInt1(Type type, int lineno){
+    if(type->u.basic != TINT)
+        semantic_error(7, lineno, "not integer");
+    else
+        return INT_Type_const;
     return NULL;
 }
-Type CheckArithm2(Type type1, Type type2){
+Type CheckArithm2(Type type1, Type type2, int lineno){
     // 检测类型 7
-    TODO();
+    if (!type_com(type1, type2))
+        semantic_error(7, lineno, "operand type mismatch");
+    else if(type1->kind != BASIC)
+        semantic_error(7, lineno, "operand type does not match operator");
+    else
+        return type1;
+    // TODO();
     return NULL;
 }
-Type CheckArithm1(Type type){
-    TODO();
+Type CheckArithm1(Type type, int lineno){
+    if (type->kind != BASIC)
+        semantic_error(7, lineno, "operand type does not match operator");
+    else
+        return type;
     return NULL;
 }
-Type CheckAssign(Type type1, Type type2){
+Type CheckAssign(Type type1, Type type2, int lineno){
     // 检测类型5
-    TODO();
+    if (!type_com(type1, type2))
+        semantic_error(5, lineno, "Expression types on both sides of ASSIGNOP do not match");
+    else
+        return type2;
     return NULL;
 }
 

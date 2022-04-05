@@ -8,14 +8,14 @@
 #define ASSERT_ON
 
 #ifdef ASSERT_ON
-#define TODO() printf("need to do\n"); //Assert(0)
-#define Assert(expr) \
-    do{\
-        assert(expr);\
-    }while(0)
+    #define TODO() printf("need to do\n"); //Assert(0)
+    #define Assert(expr) \
+        do{\
+            assert(expr);\
+        }while(0)       // ?
 #else
-#define Assert(expr) if(expr) {};
-#define TODO() printf("need to do\n")
+    #define Assert(expr) if(expr) {};
+    #define TODO() printf("need to do\n")
 #endif
 
 
@@ -88,7 +88,7 @@ void            type_free       (Type type);
 int             type_com        (Type dst, Type src);
 int             array_com       (Type dst, Type src);
 
-FieldList       field_malloc     (char *name, Type inh);
+FieldList       field_malloc    (char *name, Type inh);
 void            field_free      (FieldList field);
 Type            field_find      (char *name, FieldList field);
 int             field_com       (FieldList dst, FieldList src);
@@ -134,11 +134,11 @@ Type    SddExpFun           (node_t *node, int isLeft);
 Type    SddExpArray         (node_t *node, int isLeft);
 Type    SddExpStruct        (node_t *node, int isLeft);
 
-Type    CheckInt2           (Type type1, Type type2);
-Type    CheckInt1           (Type type);
-Type    CheckAssign         (Type type1, Type type2);
-Type    CheckArithm2        (Type type1, Type type2);
-Type    CheckArithm1        (Type type);
+Type    CheckInt2           (Type type1, Type type2, node_t *comp, int lineno);
+Type    CheckInt1           (Type type, int lineno);
+Type    CheckAssign         (Type type1, Type type2, int lineno);
+Type    CheckArithm2        (Type type1, Type type2, int lineno);
+Type    CheckArithm1        (Type type, int lineno);
 void    CheckFun            ();
 
 void semantic_error(int errorno, int lineno, char* str);
