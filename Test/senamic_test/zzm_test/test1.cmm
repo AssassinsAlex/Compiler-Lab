@@ -1,0 +1,27 @@
+// 1-10
+struct A{
+    int aa;
+
+};
+
+struct A func1(){return 1.0;}  // 8 
+
+struct A func1(){return 1;}    // 8 4 
+
+int Func(){
+    return 1;
+}
+
+int main(){
+    
+    struct A a1;
+    int a1;     //3
+    float f = 1 + 100;  //5
+    int ai[100];
+    float fi[100];
+    variable = func();  //1 2
+    101 = f;    // 6
+    if (a + 100 == 1)   //7
+        Func();
+    Func(a1[100]);  //9  10
+}

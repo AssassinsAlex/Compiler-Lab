@@ -18,10 +18,8 @@
     #define TODO() printf("need to do\n")
 #endif
 
-
 #define false 0
 #define true 1
-
 
 #define NAME_SIZE 40
 /* symbol table */
@@ -53,7 +51,12 @@ struct FieldList_{
     Type type; // 域的类型
     FieldList tail;
 };
-
+/*
+struct list_int{
+    int lineno;
+    struct list_int *nxt;
+};
+*/
 
 typedef struct symbol_* symbol;
 struct symbol_
@@ -62,7 +65,12 @@ struct symbol_
     union {
         Type variable;
         Type struct_tag;
-        struct {int defined; Type ret; FieldList parameter;} func;
+        struct {
+            int defined;
+            Type ret;
+            FieldList parameter;
+            //struct list_int *func_used;
+        } func;
     }u;
     char name[NAME_SIZE];
     int first_lineno;
@@ -71,11 +79,9 @@ struct symbol_
     symbol list_nxt;
 };
 
-
 /* hash table */
 #define HASH_SIZE 0x3fff
 extern symbol symbol_list[HASH_SIZE];
-
 
 /* orthogonal list */
 typedef struct list_node_* list_node;
@@ -83,6 +89,7 @@ struct list_node_{
     symbol sym;
     list_node nxt;
 };
+
 Type            type_malloc     (int kind1, int kind2);
 void            type_free       (Type type);
 int             type_com        (Type dst, Type src);
@@ -134,7 +141,7 @@ Type    SddExpFun           (node_t *node, int isLeft);
 Type    SddExpArray         (node_t *node, int isLeft);
 Type    SddExpStruct        (node_t *node, int isLeft);
 
-Type    CheckInt2           (Type type1, Type type2, node_t *comp, int lineno);
+Type    CheckInt2           (Type type1, Type type2, int lineno);
 Type    CheckInt1           (Type type, int lineno);
 Type    CheckAssign         (Type type1, Type type2, int lineno);
 Type    CheckArithm2        (Type type1, Type type2, int lineno);

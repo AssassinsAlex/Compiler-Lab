@@ -1,0 +1,25 @@
+//要求2.3
+struct A{
+    int a;
+};
+
+struct AA{
+    int aa;
+};
+
+struct B{
+    struct A sa[10];
+    struct AA saa[2];
+};
+
+struct BB{
+    struct AA ssaa[10];
+    struct A ssa[2];
+};
+
+int main(){
+    struct B sb;
+    struct BB sbb;
+    sbb = sb;
+    return 1;
+}

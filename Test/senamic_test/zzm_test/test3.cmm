@@ -1,0 +1,9 @@
+int func();    //  18
+
+int func1();   //  18
+int func1(int a);  //19
+
+int main(){
+    func1();    //2
+    return 1;
+}

@@ -1,0 +1,16 @@
+struct A{
+    int a;
+};
+
+struct A sa;
+
+struct sa{  // 16
+    float j;
+};
+
+int main()
+{
+    sa.a = 1;
+    sa.b = 1;   //  14
+    return 1;
+}

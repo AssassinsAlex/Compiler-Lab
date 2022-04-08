@@ -73,6 +73,7 @@ ExtDef : Specifier ExtDecList SEMI {$$ = trans_tree("ExtDef", ExtDef, 0, @$.firs
 
     | Specifier error SEMI {$$ = NULL;prompt("wrong extdef");}
     | error SEMI {$$ = NULL; prompt("wrong extdef");}
+    | error FunDec CompSt {$$ = NULL;}
     | Specifier error{$$ = NULL; prompt("need ;");};
     ;
 ExtDecList : VarDec {$$ = trans_tree("ExtDecList", ExtDecList, 0, @$.first_line, 1, $1, @1.first_line);}
@@ -168,7 +169,7 @@ Exp : Exp ASSIGNOP Exp {$$ = trans_tree("Exp", Exp, 0, @$.first_line, 3, $1, @1.
     | INT {$$ = trans_tree("Exp", Exp, 16, @$.first_line, 1, $1, @1.first_line);}
     | FLOAT {$$ = trans_tree("Exp", Exp, 17, @$.first_line, 1, $1, @1.first_line);}
     ;
-Args : Exp COMMA Args {$$ = trans_tree("Args", Args, 0, @$.first_line, 3, @$.first_line, 3, $1, @1.first_line, $2, @2.first_line, $3, @3.first_line);}
+Args : Exp COMMA Args {$$ = trans_tree("Args", Args, 0, @$.first_line, 3, $1, @1.first_line, $2, @2.first_line, $3, @3.first_line);}
     | Exp  {$$ = trans_tree("Args", Args, 1, @$.first_line, 1, $1, @1.first_line);}
     ;
 

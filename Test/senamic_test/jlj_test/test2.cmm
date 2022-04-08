@@ -1,0 +1,61 @@
+int a, b;
+
+struct A{
+    int a;
+    int b;
+};
+
+int func1(int a);
+int func2(int b);
+int func3(int a);               // error 18
+int func4(struct A b);          
+int func5(int a);               // error 18
+int func6(int a);               // error 18
+int func7(int b);               // error 18
+int func10(struct A{int a, b;} c){
+    int d;
+}
+int func11(struct A{int a[9], b;} c){
+    d = 1;                      // error 1;
+}
+
+int main(){
+    struct A c;
+    func1(a);           
+    func8(a);                   // error 2
+    func4(c);
+    func5(b);
+    func6(c);                   // error 9;
+    func10(c);
+    func11(c);                  // error 9;
+}
+
+int func1(int a){
+    int b; int c;
+}
+
+int func2(int b){
+    int a; int c;
+}
+
+int func3(struct A a){          // error 19
+    int c;
+}
+
+int func4(struct A a){
+    int c;
+}
+
+
+int func5(int a);
+int func5(int a);
+
+int func8(int a){
+    int a, b;                  //error 3
+}
+
+int func9(int a){
+    int c, d;
+}
+
+

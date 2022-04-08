@@ -1,0 +1,26 @@
+// 要求2.3
+struct A{
+    int a[2][3];
+    float f;
+    int aa;
+};
+
+struct B{
+    int b[2][3];
+    float ff;
+    int bb;
+};
+
+int main(){
+    struct A a;
+    struct B b;
+    a.f = 1.0;
+    a.aa = 1;
+    a.a[0][0] = 0;
+
+    b = a;
+    if (b.ff != 1.0 || b.bb != 1){}
+
+    return 1;
+
+}

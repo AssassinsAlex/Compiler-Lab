@@ -1,0 +1,29 @@
+struct A{
+    int i;
+    float f;
+};
+
+struct B{
+    int aa = 123;
+};  //  15
+
+struct C{
+    int aaa;
+    float aaa;
+};  //  15
+
+int main(){
+    int arr[2][3][4];
+    int a1;
+    struct A sa;
+    struct A a1;    //16
+    struct D d1;    //17
+    arr[1][2][1.0] = 1; //  12
+    a1();   //  11
+    a1.a;   //  13
+    sa.i = 1;
+    sa.f = 1.0;
+    sa.j = 123; //  14
+   
+    return 1;
+}
