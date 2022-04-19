@@ -87,18 +87,15 @@ int type_com(Type dst, Type src){
 
 int array_com(Type dst, Type src){
     //[2][3]  [3][2]
-    int dim1 = 0, size1 = 1, dim2 = 0, size2 = 1;
+    int dim1 = 0, dim2 = 0;
     while (dst->kind == ARRAY){
         dim1++;
-        size1 = size1 * dst->u.array.size;
         dst = dst->u.array.elem;
     }
     while(src->kind == ARRAY){
         dim2++;
-        size2 = size2 * src->u.array.size;
         src = src->u.array.elem;
     }
-    if(size1 != size2) return false;
     if(dim1 != dim2) return false;
     return type_com(dst, src);
 }

@@ -16,7 +16,7 @@ int func2(struct A{int b[10][10][10][10];} a){
 int main(){
     struct A a;
     int b[20][5][10][10];
-    int c[20][5][10];
+    int c[20][5][10];    if(size1 != size2) return false;
     int d[20][5][5][5][5];
     int e[2][10][10][10][10];
     func(b);
@@ -24,7 +24,7 @@ int main(){
     c + b;              // error 7;
     c + b[20];          // error 7;
     c[1][1][1] + b[1][1][1][1];
-    func(d[1]);         // error 9;
+    func(d[1]);         
     func(e[0]);
     func(a.b);
     func(a.b[0]);       // error 9;

@@ -1,0 +1,15 @@
+
+int func(int a[10],int b);
+
+int main(int i, float j){
+    int a[100][3][4];
+    func(a[100][2], a[1][2][0]);
+    if (func() == 1)
+        i = 3;
+    func[1];    //  10
+
+    return 1;
+}
+
+int func(int a[10],int b){}
+
