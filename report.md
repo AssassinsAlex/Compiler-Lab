@@ -37,8 +37,8 @@
 
   ```c
   void CheckFun(){
-      Assert(list_head != NULL);
-      symbol cur = list_head->sym;
+      Assert(envs != NULL);
+      symbol cur = envs->sym;
       while(cur){
           if(cur->kind == FUNCTION){
               if(!cur->u.func.defined) {

@@ -24,6 +24,6 @@ int main(int argc, char** argv) {
     if(!get_syn_error){
         //print_tree(CST, 0);
         SddProgram(CST);
-    }Trans_Program();
+    }
     return 0;
 }

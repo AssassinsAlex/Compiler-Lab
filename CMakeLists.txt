@@ -30,4 +30,3 @@ message("files:${SRC_LIST}")
 message("Exclude:${UNUSED}")
 
 add_executable(parse ${SRC_LIST})
-

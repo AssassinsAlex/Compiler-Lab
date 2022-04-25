@@ -1,6 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
-
+#include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 
 #define ASSERT_ON
