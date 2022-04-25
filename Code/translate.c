@@ -1,5 +1,6 @@
 #include "translate.h"
 static int temp_num = 0;
+static int label_num = 0;
 
 InterCodes Code_malloc(){
     InterCodes code = malloc(sizeof(struct InterCodes_));
@@ -23,6 +24,13 @@ Operand get_variable(char *name){
     var->kind = VARIABLE_O;
     var->u.var_no = sym->no;
     return var;
+}
+
+InterCodes new_label(){
+    InterCodes codes = code_malloc();
+    codes->code.kind = LABEL;
+    codes->code.u.label_no = label_num++;
+    return codes;
 }
 
 InterCodes  MergeCodes(InterCodes code1, InterCodes code2){
@@ -168,7 +176,7 @@ void TransVarDec(node_t *node, Type inh, Type structure){
 static FieldList TransFunVar_(node_t *node){
     Assert(node->token_val == FunDec);
     Assert(node->production_id == 0 || node->production_id == 1);
-    env_insert(env_create());
+    env_push();
     FieldList varlist = NULL;
     if(node->production_id == 0) {
         TransVarList(CHILD(3, node));
@@ -198,7 +206,7 @@ InterCodes TransFunDef(node_t *node, Type inh){
     funsym->u.func.defined = true;
     InterCodes code1 = malloc(sizeof(struct InterCodes_));
     code1->code.kind = FUNCDEF;
-    strncpy(code1->code.u.name,CHILD(1, node)->str, NAME_SIZE);
+    strncpy(code1->code.u.func_name,CHILD(1, node)->str, NAME_SIZE);
     code1->prev = NULL;
     code1->next = NULL;
     code1->tail = code1;
@@ -275,88 +283,68 @@ InterCodes TransDec(node_t *node, Type inh, Type structure){
             return MergeCodes(code1, code2);
         default:
             Assert(0);
-            break;
+            return NULL;
     }
 }
 
 InterCodes TransCompSt(node_t *node, int isFun, Type ret){
     Assert(node->token_val == CompSt);
     if(!isFun)
-        env_insert(env_create());
+        env_push();
+    InterCodes code = NULL;
     if(CHILD(3, node) != NULL){
         if(CHILD(4, node) != NULL){
-            TransDefList(CHILD(2, node), NULL);
-            TransStmtList(CHILD(3, node), ret);
+            InterCodes code1 = TransDefList(CHILD(2, node), NULL);
+            InterCodes code2 = TransStmtList(CHILD(3, node), ret);
+            code = MergeCodes(code1, code2);
         }else{
             if(CHILD(2,node)->token_val == DefList)
-                TransDefList(CHILD(2, node), NULL);
+                code = TransDefList(CHILD(2, node), NULL);
             else
-                TransStmtList(CHILD(2, node), ret);
+                code = TransStmtList(CHILD(2, node), ret);
         }
     }
     env_pop();
 }
 
-void SddStmtList(node_t *node, Type ret){
-    if(node == NULL) return;
+InterCodes SddStmtList(node_t *node, Type ret){
+    if(node == NULL) return NULL;
     Assert(node->token_val == StmtList);
-    SddStmt(CHILD(1, node), ret);
-    SddStmtList(CHILD(2, node), ret);
+    InterCodes code1 = TransStmt(CHILD(1, node), ret);
+    InterCodes code2 = TransStmtList(CHILD(2, node), ret);
+    return MergeCodes(code1, code2);
 }
 
-void SddStmt(node_t *node, Type ret){
+InterCodes TransStmt(node_t *node, Type ret){
     Assert(node->token_val == Stmt);
     switch (node->production_id) {
         case 0:
-            SddExp(CHILD(1, node), false);
-            break;
+            return TransExp(CHILD(1, node), NULL);
         case 1:
-            SddCompSt(CHILD(1, node), false, ret);
-            break;
+            return TransCompSt(CHILD(1, node), false, ret);
         case 2:
-            SddReturn(CHILD(2, node), ret);
-            break;
+            return TransReturn(node);
         case 3:
-            CheckInt1(SddExp(CHILD(3, node), false), node->lineno);
-            SddStmt(CHILD(5, node), ret);
-            break;
+            return TransIf(node);
         case 4:
-            CheckInt1(SddExp(CHILD(3, node), false), node->lineno);
-            SddStmt(CHILD(5, node), ret);
-            SddStmt(CHILD(7, node), ret);
-            break;
+            return TransIfEl(node);
         case 5:
-            CheckInt1(SddExp(CHILD(3, node), false), node->lineno);
-            SddStmt(CHILD(5, node), ret);
-            break;
+            return TransWhile(node);
         default:
             Assert(0);
+            return NULL;
     }
 
 }
 
-Type SddExp(node_t *node, int isLeft){
+InterCodes TransExp(node_t *node, Operand op){
     Assert(node->token_val == Exp);
     // 检测类型6
-    if(isLeft) {
-        switch (node->production_id) {
-            case 0:
-            case 8:
-            case 11:
-            case 12:
-            case 13:
-            case 14:
-            case 15:
-                break;
-            default:
-                semantic_error(6, node->lineno, "The left-hand side of an assignment must be a variable.");
-                return Error_Type;
-        }
-    }
+
     switch (node->production_id) {
         case 0:
         {
-            Type type1 = SddExp(CHILD(1, node), true);
+            Type type1 = TransExp(CHILD(1, node), op);
             Type type2 = SddExp(CHILD(3, node), false);
             return CheckAssign(type1, type2, node->lineno);
         }
@@ -391,7 +379,7 @@ Type SddExp(node_t *node, int isLeft){
             return CheckInt1(SddExp(CHILD(1, node), false), node->lineno);
         case 11:
         case 12:
-            return SddExpFun(node, isLeft);
+            return TransExpFun(node, op);
         case 13: /* array */
             return SddExpArray(node, isLeft);
         case 14: /* struct */
@@ -408,39 +396,22 @@ Type SddExp(node_t *node, int isLeft){
     }
 }
 
-void SddArgs(node_t *node, FieldList ArgList){
+InterCodes TransArgs(node_t *node, FieldList ArgList){
     // error 9
     Assert(node->token_val == Args);
     Assert(node->production_id == 0 || node->production_id == 1);
-    Type syn = SddExp(CHILD(1, node), false);
-    if(ArgList == NULL || !type_com(ArgList->type, syn))
-        semantic_error(9, node->lineno, "the type of arg conflict");
-    if(node->production_id == 0)
-        SddArgs(CHILD(3, node), ArgList->tail);
+
 }
 
-Type SddExpFun(node_t *node, int isLeft){
+InterCodes TransExpFun(node_t *node, Operand place){
     // 检测error 2;
     // error 11
     symbol sym = hash_find(CHILD(1, node)->str);
-    if(sym == NULL) {
-        semantic_error(2, node->lineno, "function used but not declare");
-        return Error_Type;
-    }
-    if(sym->kind != FUNCTION) {
-        semantic_error(11, node->lineno, "variable can't use (..)");
-        return Error_Type;
-    }
-    if(!sym->u.func.defined) {
-        //struct list_int* tmp = malloc(sizeof(struct list_int));
-        //tmp->nxt = sym->u.func.func_used;
-        //sym->u.func.func_used = tmp;
-        //tmp->lineno = node->lineno;
-    }
+
     Assert(node->production_id == 11 || node->production_id == 12);
     if(node->production_id == 11)
-        SddArgs(CHILD(3, node), sym->u.func.parameter);
-    return sym->u.func.ret;
+        TransArgs(CHILD(3, node), sym->u.func.parameter);
+    return NULL;
 }
 
 Type SddExpArray(node_t *node, int isLeft){
@@ -503,79 +474,27 @@ Type SddArray(Type inh, int size){
     return arr;
 }
 
-void SddReturn(node_t *node, Type ret){
-    // 检测类型8
-    // shi fou jian ce han shu you wu fan hui zhi
-    Type type = SddExp(node, false);
-    if (!type_com(ret, type))
-        semantic_error(8, node->lineno, "function return type not match");
+InterCodes TransReturn(node_t *node){
+    Operand t1 = new_temp();
+    InterCodes code1 = TransExp(CHILD(2, node), t1);
+    InterCodes code2 = code_malloc();
+    code2->code.kind = RETURN;
+    code2->code.u.ret.val = t1;
+    MergeCodes(code1, code2);
 }
 
-Type CheckInt2(Type type1, Type type2, int lineno){
-    if(CheckInt1(type1, lineno) == Error_Type) return Error_Type;
-    if(CheckInt1(type2, lineno) == Error_Type) return Error_Type;
-    if (type1->u.basic != TINT || type2->u.basic != TINT) {
-        semantic_error(7, lineno, "not integer");
-        return Error_Type;
-    }
-    return type_malloc(BASIC, TINT);
+InterCodes TransIf(node_t *node){
+
 }
 
-Type CheckInt1(Type type, int lineno){
-    Assert(type != NULL);
-    if(type == Error_Type)
-        return Error_Type;
+InterCodes TransIfEl(node_t *node){
 
-    if(type->u.basic != TINT){
-        semantic_error(7, lineno, "not integer");
-        return Error_Type;
-    }
-    return type_malloc(BASIC, TINT);
-}
-Type CheckArithm2(Type type1, Type type2, int lineno){
-    // 检测类型 7
-    Assert(type1 != NULL && type2 != NULL);
-    if (!type_com(type1, type2))
-        semantic_error(7, lineno, "operand type mismatch");
-    else if(type1->kind != BASIC)
-        semantic_error(7, lineno, "operand type does not match operator");
-    else if(type1 != Error_Type && type2 != Error_Type)
-        return type1;
-    return Error_Type;
-}
-Type CheckArithm1(Type type, int lineno){
-    Assert(type != NULL);
-    if(type == Error_Type) return Error_Type;
-    if (type->kind != BASIC) {
-        semantic_error(7, lineno, "operand type does not match operator");
-        return Error_Type;
-    }
-    return type;
-}
-Type CheckAssign(Type type1, Type type2, int lineno){
-    // 检测类型5
-    Assert(type1 != NULL && type2 != NULL);
-    if(type1 == Error_Type || type2 == Error_Type) return Error_Type;
-    if (!type_com(type1, type2)) {
-        semantic_error(5, lineno, "Type mismatched for assignment.");
-        return Error_Type;
-    }
-    return type1;
 }
 
-void CheckFun(){
-    Assert(envs != NULL);
-    symbol cur = envs->sym;
-    while(cur){
-        if(cur->kind == FUNCTION){
-            if(!cur->u.func.defined) {
-                semantic_error(18, cur->first_lineno, "declared but not defined");
-                //struct list_int* tmp = cur->u.func.func_used;
-                //while(tmp){
-                //    semantic_error(2, tmp->lineno, "function used but not define");
-                //    tmp = tmp->nxt;
-                //}
-            }
-        }cur = cur->list_nxt;
-    }
+InterCodes TransWhile(node_t *node){
+
+}
+
+InterCodes TransCond(node_t *node, InterCode* LabelTrue, InterCode* LabelFalse){
+
 }

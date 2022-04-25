@@ -109,8 +109,7 @@ void            hash_insert     (symbol sym);
 symbol          hash_find       (char* name);
 int             hash_delete     (symbol sym);
 
-EnvNode         env_create     ();
-void            env_insert     (EnvNode node);
+void            env_push        ();
 void            env_insert_sym (symbol sym);
 void            env_pop        ();
 void            env_init       ();

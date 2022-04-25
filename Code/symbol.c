@@ -9,6 +9,7 @@ Type Error_Type = NULL;
 
 symbol symbol_list[HASH_SIZE] = {0};
 EnvNode envs = NULL;
+static int var_no = 0;
 
 void semantic_error(int errorno, int lineno, char* str){
     printf("Error type %d at Line %d: %s.\n", errorno, lineno, str);
@@ -144,6 +145,7 @@ symbol symbol_add(node_t *node, Type inh, int sym_kind){
             //sym->u.func.func_used = NULL;
             break;
         case VARIABLE:
+            sym->no = var_no++;
             sym->u.variable = inh;
             break;
         case STRUCT_TAG:
@@ -239,22 +241,16 @@ int hash_delete(symbol sym){
 
 /* orthogonal list */
 
-EnvNode env_create(){
+void env_push(){
     EnvNode new = (EnvNode)malloc(sizeof(struct EnvNode_));
     new->sym = NULL;
-    new->nxt = NULL;
-    return new;
-}
-
-void env_insert(EnvNode node){
-    node->nxt = envs;
-    envs = node;
+    new->offset = 0;
+    new->nxt = envs;
+    envs = new;
 }
 
 void env_insert_sym(symbol sym){
-    if(envs == NULL){
-        envs = env_create();
-    }sym->list_nxt = envs->sym;
+    sym->list_nxt = envs->sym;
     envs->sym = sym;
 }
 
@@ -272,6 +268,9 @@ void env_pop(){
 }
 
 void env_init(){
+    env_push();
+    var_no = 0;
+
     INT_Type_const = (Type)malloc(sizeof(struct Type_));
     INT_Type_const->kind = BASIC;
     INT_Type_const->locked = true;
@@ -300,5 +299,5 @@ void env_init(){
     sym = symbol_add(node, INT_Type_const, FUNCTION);
     sym->u.func.parameter = field_malloc("x", INT_Type_const);
     sym->u.func.defined = true;
-    env_insert(env_create());
+
 }

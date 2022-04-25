@@ -13,11 +13,14 @@ struct Operand_ {
 };
 
 typedef struct InterCode{
-    enum {ASSIGN, ADD, SUB, MUL, FUNCDEF} kind;
+    enum {ASSIGN, ADD, SUB, MUL, FUNCDEF, RETURN, LABEL} kind;
     union {
         struct {Operand right, left;} assign;
         struct {Operand result, op1, op2;} binop;
-        char name[NAME_SIZE];
+        char func_name[NAME_SIZE];
+        struct {Operand val;} ret;
+        int label_no;
+
     }u;
 }InterCode;
 
@@ -55,8 +58,15 @@ InterCodes  TransArgs             (node_t *node, FieldList ArgList);
 InterCodes  TransId               (node_t *node);
 Type        TransType             (node_t *node);
 Type        TransArray            (Type inh, int size);
-InterCodes  TransReturn           (node_t *node, Type ret);
-InterCodes  TransExpFun           (node_t *node, int isLeft);
+InterCodes  TransReturn           (node_t *node);
+InterCodes  TransWhile            (node_t *node);
+InterCodes  TransIf               (node_t *node);
+InterCodes  TransIfEl             (node_t *node);
+InterCodes  TransExpFun           (node_t *node, Operand op);
 InterCodes  TransExpArray         (node_t *node, int isLeft);
 InterCodes  TransExpStruct        (node_t *node, int isLeft);
+
+InterCodes  TransCond             (node_t *node, InterCode* LabelTrue, InterCode* LabelFalse);
+
+
 #endif

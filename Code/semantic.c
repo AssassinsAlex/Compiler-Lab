@@ -148,7 +148,7 @@ void SddVarDec(node_t *node, Type inh, Type structure){
 static FieldList SddFunVar_(node_t *node){
     Assert(node->token_val == FunDec);
     Assert(node->production_id == 0 || node->production_id == 1);
-    env_insert(env_create());
+    env_push();
     FieldList varlist = NULL;
     if(node->production_id == 0) {
         SddVarList(CHILD(3, node));
@@ -294,7 +294,7 @@ void SddDec(node_t *node, Type inh, Type structure){
 void SddCompSt(node_t *node, int isFun, Type ret){
     Assert(node->token_val == CompSt);
     if(!isFun)
-        env_insert(env_create());
+        env_push();
     if(CHILD(3, node) != NULL){
         if(CHILD(4, node) != NULL){
             SddDefList(CHILD(2, node), NULL);
