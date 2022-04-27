@@ -2,7 +2,7 @@
 static int temp_num = 0;
 static int label_num = 0;
 
-InterCodes Code_malloc(){
+InterCodes code_malloc(){
     InterCodes code = malloc(sizeof(struct InterCodes_));
     code->next = NULL;
     code->prev = NULL;
@@ -10,20 +10,118 @@ InterCodes Code_malloc(){
     return code;
 }
 
+InterCodes gen_assign_code(Operand right, Operand left, int kind){
+    if(left == NULL) return NULL;
+    InterCodes code = code_malloc();
+    code->code.kind = ASSIGN;
+    code->code.u.assign.kind = kind;
+    code->code.u.assign.right = right;
+    code->code.u.assign.left = left;
+    return code;
+}
+
+InterCodes gen_arith_code(Operand result, Operand op1, Operand op2, int kind){
+    InterCodes code = code_malloc();
+    code->code.kind = kind;
+    code->code.u.binop.op1 = op1;
+    code->code.u.binop.op2 = op2;
+    code->code.u.binop.result = result;
+    return code;
+}
+
+InterCodes gen_cjp_code(Operand x, Operand y, char *relop, int label){
+    InterCodes code = code_malloc();
+    code->code.kind = CJP;
+    code->code.u.cjp.label_no = label;
+    code->code.u.cjp.x = x;
+    code->code.u.cjp.y = y;
+    strncpy(code->code.u.cjp.relop, relop, 16);
+    return code;
+}
+
+InterCodes gen_goto_code(int label){
+    InterCodes code = code_malloc();
+    code->code.kind = GOTO;
+    code->code.u.label_no = label;
+    return code;
+}
+
+InterCodes gen_read_code(Operand x){
+    InterCodes code = code_malloc();
+    code->code.kind = READ;
+    code->code.u.op_x = x;
+    return code;
+}
+
+InterCodes gen_write_code(Operand x){
+    InterCodes code = code_malloc();
+    code->code.kind = WRITE;
+    code->code.u.op_x = x;
+    return code;
+}
+
+InterCodes gen_call_code(char *name, Operand x){
+    if(x == NULL) x = new_temp();
+    InterCodes code = code_malloc();
+    code->code.kind = CALL;
+    code->code.u.call.x = x;
+    strncpy(code->code.u.call.name, name, NAME_SIZE);
+    return code;
+}
+
+InterCodes gen_arg_code(Operand x){
+    InterCodes code = code_malloc();
+    code->code.kind = ARG;
+    code->code.u.op_x = x;
+    return code;
+}
+
+InterCodes gen_parm_code(Operand x){
+    InterCodes code = code_malloc();
+    code->code.kind = PARAM;
+    code->code.u.op_x = x;
+    return code;
+}
+
+InterCodes gen_func_code(char *name){
+    InterCodes code = code_malloc();
+    code->code.kind = FUNCDEF;
+    strncpy(code->code.u.func_name, name, NAME_SIZE);
+    return code;
+}
+
+InterCodes gen_ret_code(Operand x){
+    InterCodes code = code_malloc();
+    code->code.kind = RETURN;
+    code->code.u.op_x = x;
+    return code;
+}
+
+Operand operand_malloc(int kind, int num){
+    Operand op = malloc(sizeof(struct Operand_));
+    op->kind = kind;
+    switch (kind) {
+        case VARIABLE_O:
+        case TEMPORARY_O:
+            op->u.var_no = num;
+            break;
+        case CONSTANT_O:
+            op->u.value = num;
+            break;
+        default:
+            break;
+    }
+    return op;
+}
+
 Operand new_temp(){
-    Operand tmp = malloc(sizeof(struct Operand_));
-    tmp->kind = TEMPORARY_O;
-    tmp->u.var_no = temp_num++;
-    return tmp;
+    return operand_malloc(TEMPORARY_O, temp_num++);
 }
 
 Operand get_variable(char *name){
     symbol sym = hash_find(name);
     Assert(sym->kind == VARIABLE);
-    Operand var = malloc(sizeof(struct Operand_));
-    var->kind = VARIABLE_O;
-    var->u.var_no = sym->no;
-    return var;
+    return operand_malloc(VARIABLE_O, sym->no);
 }
 
 InterCodes new_label(){
@@ -33,7 +131,7 @@ InterCodes new_label(){
     return codes;
 }
 
-InterCodes  MergeCodes(InterCodes code1, InterCodes code2){
+InterCodes MergeCodes(InterCodes code1, InterCodes code2){
     if(code1 == NULL) return code2;
     else if(code2 == NULL) return code1;
     code1->tail->next = code2;
@@ -54,7 +152,7 @@ InterCodes TransExtDefList(node_t *node){
     if(node == NULL) return NULL;
     Assert(node->token_val == ExtDefList);
     InterCodes code1 = TransExtDef(CHILD(1, node));
-    InterCodes code2 = TransDefList(CHILD(2, node));
+    InterCodes code2 = TransExtDefList(CHILD(2, node));
     return MergeCodes(code1, code2);
 }
 
@@ -158,6 +256,9 @@ void TransVarDec(node_t *node, Type inh, Type structure){
             }else{
                 Assert(structure->kind == STRUCTURE);
                 FieldList cur_field = field_malloc(CHILD(1, node)->str, inh);
+                if(structure->u.structure != NULL){
+                    cur_field->offset = structure->u.structure->offset + type_size(structure->u.structure->type);
+                }
                 cur_field->tail = structure->u.structure;
                 structure->u.structure = cur_field;
             }
@@ -173,11 +274,11 @@ void TransVarDec(node_t *node, Type inh, Type structure){
     }
 }
 
-static FieldList TransFunVar_(node_t *node){
+static InterCodes TransFunVar_(node_t *node){
     Assert(node->token_val == FunDec);
     Assert(node->production_id == 0 || node->production_id == 1);
     env_push();
-    FieldList varlist = NULL;
+    InterCodes code1 = NULL;
     if(node->production_id == 0) {
         TransVarList(CHILD(3, node));
         symbol cur = envs->sym;
@@ -185,13 +286,12 @@ static FieldList TransFunVar_(node_t *node){
             Assert(cur->kind != FUNCTION);
             cur->u.variable->func_locked = true;
             if(cur->kind == VARIABLE) {
-                FieldList field = field_malloc(cur->name, cur->u.variable);
-                field->tail = varlist;
-                varlist = field;
+                InterCodes code2 = gen_parm_code(operand_malloc(VARIABLE_O, cur->no));
+                code1 = MergeCodes(code1, code2);
             }
             cur = cur->list_nxt;
         }
-    }return varlist;
+    }return code1;
 }
 
 InterCodes TransFunDef(node_t *node, Type inh){
@@ -199,19 +299,15 @@ InterCodes TransFunDef(node_t *node, Type inh){
     Assert(hash_find(CHILD(1, node)->str) == NULL);
     symbol funsym = symbol_add(CHILD(1, node), inh, FUNCTION);
     Assert(funsym != NULL);
-
+    InterCodes code1 = gen_func_code(CHILD(1, node)->str);
     inh->func_locked = true;
-    FieldList field = TransFunVar_(node);
-    funsym->u.func.parameter = field;
+    InterCodes code2 = TransFunVar_(node);
+    funsym->u.func.parameter = NULL;
     funsym->u.func.defined = true;
-    InterCodes code1 = malloc(sizeof(struct InterCodes_));
-    code1->code.kind = FUNCDEF;
-    strncpy(code1->code.u.func_name,CHILD(1, node)->str, NAME_SIZE);
-    code1->prev = NULL;
-    code1->next = NULL;
-    code1->tail = code1;
-    InterCodes code2 = TransCompSt(node->brother, true, inh);
-    return MergeCodes(code1, code2);
+
+    InterCodes code3 = TransCompSt(node->brother, true);
+    code1 = MergeCodes(code1, code2);
+    return MergeCodes(code1, code3);
 }
 
 void TransFunDec(node_t *node, Type inh) {
@@ -276,10 +372,7 @@ InterCodes TransDec(node_t *node, Type inh, Type structure){
             TransVarDec(CHILD(1, node), inh, structure);
             Operand t1 = new_temp();
             InterCodes code1 = TransExp(CHILD(3, node), t1);
-            InterCodes code2 = code_malloc();
-            code2->code.kind = ASSIGN;
-            code2->code.u.assign.left = get_variable(CHILD(1, CHILD(1, node))->str);
-            code2->code.u.assign.right = t1;
+            InterCodes code2 = gen_assign_code(t1, get_variable(CHILD(1, CHILD(1, node))->str), NORMAL);
             return MergeCodes(code1, code2);
         default:
             Assert(0);
@@ -287,7 +380,7 @@ InterCodes TransDec(node_t *node, Type inh, Type structure){
     }
 }
 
-InterCodes TransCompSt(node_t *node, int isFun, Type ret){
+InterCodes TransCompSt(node_t *node, int isFun){
     Assert(node->token_val == CompSt);
     if(!isFun)
         env_push();
@@ -295,33 +388,34 @@ InterCodes TransCompSt(node_t *node, int isFun, Type ret){
     if(CHILD(3, node) != NULL){
         if(CHILD(4, node) != NULL){
             InterCodes code1 = TransDefList(CHILD(2, node), NULL);
-            InterCodes code2 = TransStmtList(CHILD(3, node), ret);
+            InterCodes code2 = TransStmtList(CHILD(3, node));
             code = MergeCodes(code1, code2);
         }else{
             if(CHILD(2,node)->token_val == DefList)
                 code = TransDefList(CHILD(2, node), NULL);
             else
-                code = TransStmtList(CHILD(2, node), ret);
+                code = TransStmtList(CHILD(2, node));
         }
     }
     env_pop();
+    return code;
 }
 
-InterCodes SddStmtList(node_t *node, Type ret){
+InterCodes TransStmtList(node_t *node){
     if(node == NULL) return NULL;
     Assert(node->token_val == StmtList);
-    InterCodes code1 = TransStmt(CHILD(1, node), ret);
-    InterCodes code2 = TransStmtList(CHILD(2, node), ret);
+    InterCodes code1 = TransStmt(CHILD(1, node));
+    InterCodes code2 = TransStmtList(CHILD(2, node));
     return MergeCodes(code1, code2);
 }
 
-InterCodes TransStmt(node_t *node, Type ret){
+InterCodes TransStmt(node_t *node){
     Assert(node->token_val == Stmt);
     switch (node->production_id) {
         case 0:
             return TransExp(CHILD(1, node), NULL);
         case 1:
-            return TransCompSt(CHILD(1, node), false, ret);
+            return TransCompSt(CHILD(1, node), false);
         case 2:
             return TransReturn(node);
         case 3:
@@ -337,125 +431,282 @@ InterCodes TransStmt(node_t *node, Type ret){
 
 }
 
-InterCodes TransExp(node_t *node, Operand op){
-    Assert(node->token_val == Exp);
-    // 检测类型6
+InterCodes TransReturn(node_t *node){
+    Operand t1 = new_temp();
+    InterCodes code1 = TransExp(CHILD(2, node), t1);
+    InterCodes code2 = gen_ret_code(t1);
+    return MergeCodes(code1, code2);
+}
 
+InterCodes TransIf(node_t *node){
+    InterCodes label1 = new_label();
+    InterCodes label2 = new_label();
+    InterCodes code1 = TransCond(CHILD(3, node), label1->code.u.label_no, label2->code.u.label_no);
+    InterCodes code2 = TransStmt(CHILD(5, node));
+    code1 = MergeCodes(code1, label1);
+    code1 = MergeCodes(code1 , code2);
+    return MergeCodes(code1, label2);
+}
+
+InterCodes TransIfEl(node_t *node){
+    InterCodes label1 = new_label();
+    InterCodes label2 = new_label();
+    InterCodes label3 = new_label();
+    InterCodes code1 = TransCond(CHILD(3, node), label1->code.u.label_no, label2->code.u.label_no);
+    InterCodes code2 = TransStmt(CHILD(5, node));
+    InterCodes code3 = TransStmt(CHILD(7, node));
+    code1 = MergeCodes(code1, label1);
+    code1 = MergeCodes(code1, code2);
+    code1 = MergeCodes(code1, gen_goto_code(label3->code.u.label_no));
+    code1 = MergeCodes(code1, label2);
+    code1 = MergeCodes(code1, code3);
+    return MergeCodes(code1, label3);;
+}
+
+InterCodes TransWhile(node_t *node){
+    InterCodes label1 = new_label();
+    InterCodes label2 = new_label();
+    InterCodes label3 = new_label();
+    InterCodes code1 = TransCond(CHILD(3, node), label2->code.u.label_no, label3->code.u.label_no);
+    InterCodes code2 = TransStmt(CHILD(5, node));
+    label1 = MergeCodes(label1, code1);
+    label1 = MergeCodes(label1, label2);
+    label1 = MergeCodes(label1, code2);
+    label1 = MergeCodes(label1, gen_goto_code(label1->code.u.label_no));
+    return MergeCodes(label1, label3);
+}
+
+InterCodes TransExp(node_t *node, Operand place){
+    Assert(node->token_val == Exp);
     switch (node->production_id) {
         case 0:
-        {
-            Type type1 = TransExp(CHILD(1, node), op);
-            Type type2 = SddExp(CHILD(3, node), false);
-            return CheckAssign(type1, type2, node->lineno);
-        }
+            return TransAssign(node, place);
         case 1:
         case 2:
-        {
-            Type type1 = SddExp(CHILD(1, node), false);
-            Type type2 = SddExp(CHILD(3, node), false);
-            return CheckInt2(type1, type2, node->lineno);
-        }
         case 3:
-        {
-            Type type1 = SddExp(CHILD(1, node), false);
-            Type type2 = SddExp(CHILD(3, node), false);
-            CheckArithm2(type1, type2, node->lineno);
-            return type_malloc(BASIC, TINT);
-        }
+            return TransLogic(node, place);
         case 4:
+            return TransArith(node, place, ADD);
         case 5:
+            return TransArith(node, place, SUB);
         case 6:
+            return TransArith(node, place, MUL);
         case 7:
-        {
-            Type type1 = SddExp(CHILD(1, node), false);
-            Type type2 = SddExp(CHILD(3, node), false);
-            return CheckArithm2(type1, type2, node->lineno);
-        }
+            return TransArith(node, place, DIVI);
         case 8:
-            return SddExp(CHILD(2, node), isLeft);
+            return TransExp(CHILD(2, node), place);
         case 9:
-            return CheckArithm1(SddExp(CHILD(2, node), false), node->lineno);
+            return TransMinus(node, place);
         case 10:
-            return CheckInt1(SddExp(CHILD(1, node), false), node->lineno);
+            return TransLogic(node, place);
         case 11:
         case 12:
-            return TransExpFun(node, op);
+            return TransExpFun(node, place);
         case 13: /* array */
-            return SddExpArray(node, isLeft);
+        {
+            Type ret;
+            Operand t1 = new_temp();
+            t1->kind = ADDRESS_O;
+            InterCodes code1 = TransExpArray(node, t1, &ret);
+            InterCodes code2 = gen_assign_code(t1, place, RIGHT);
+            return MergeCodes(code1, code2);
+
+        }
         case 14: /* struct */
-            return SddExpStruct(node, isLeft);
+            return TransExpStruct(node, place);
         case 15:
-            return SddId(CHILD(1, node));
+            return TransId(CHILD(1, node), place);
         case 16:
-            return type_malloc(BASIC, TINT);
+            return TransInt(CHILD(1, node), place);
         case 17:
-            return type_malloc(BASIC, TFLOAT);
+            return TransFloat(CHILD(1, node), place);
         default:
             Assert(0);
             return NULL;
     }
 }
 
-InterCodes TransArgs(node_t *node, FieldList ArgList){
-    // error 9
-    Assert(node->token_val == Args);
-    Assert(node->production_id == 0 || node->production_id == 1);
+InterCodes TransCond(node_t *node, int LabelTrue, int LabelFalse){
+    Assert(node->token_val == Exp);
+    switch (node->production_id) {
+        case 1: // and
+        {
+            InterCodes label1 = new_label();
+            InterCodes code1 = TransCond(CHILD(1, node), label1->code.u.label_no, LabelFalse);
+            InterCodes code2 = TransCond(CHILD(3, node), LabelTrue, LabelFalse);
+            code1 = MergeCodes(code1, label1);
+            return MergeCodes(code1, code2);
+        }
+        case 2: // or
+        {
+            InterCodes label1 = new_label();
+            InterCodes code1 = TransCond(CHILD(1, node), LabelTrue, label1->code.u.label_no);
+            InterCodes code2 = TransCond(CHILD(3, node), LabelTrue, LabelFalse);
+            code1 = MergeCodes(code1, label1);
+            return MergeCodes(code1, code2);
+        }
+        case 3: // relop
+        {
+            Operand t1 = new_temp();
+            Operand t2 = new_temp();
+            InterCodes code1 = TransExp(CHILD(1, node), t1);
+            InterCodes code2 = TransExp(CHILD(3, node), t2);
+            InterCodes code3 = gen_cjp_code(t1, t2, CHILD(2, node)->str, LabelTrue);
+            InterCodes code4 = gen_goto_code(LabelFalse);
+            code1 = MergeCodes(code1, code2);
+            code1 = MergeCodes(code1, code3);
+            return MergeCodes(code1, code4);
+        }
+        case 10: // not
+            return TransCond(CHILD(2, node), LabelFalse, LabelTrue);
+        default:
+        {
+            Operand t1 = new_temp();
+            InterCodes code1 = TransExp(node, t1);
+            InterCodes code2 = gen_cjp_code(t1, operand_malloc(CONSTANT_O, 0), "!=", LabelTrue);
+            InterCodes code3 = gen_goto_code(LabelFalse);
+            code1 = MergeCodes(code1, code2);
+            return MergeCodes(code1, code3);
+        }
 
+    }
+}
+
+InterCodes TransAssign(node_t *node, Operand place){
+    Operand t1 = new_temp();
+    InterCodes code1 = TransExp(CHILD(3, node), t1);
+    InterCodes code2 = NULL;
+    node = CHILD(1, node);
+    switch (node->production_id) {
+        case 13:
+        {
+            Type ret;
+            Operand a1 = new_temp();
+            a1->kind = ADDRESS_O;
+            InterCodes code3 = TransExpArray(node, a1, &ret);
+            InterCodes code4 = gen_assign_code(t1, a1, LEFT);
+            InterCodes code5 = gen_assign_code(a1, place, RIGHT);
+
+            code2 = MergeCodes(code2, code3);
+            code2 = MergeCodes(code2, code4);
+            code2 = MergeCodes(code2, code5);
+            break;
+        }
+        case 14:
+            return TransExpStruct(node, place);
+        case 15:
+        {
+            symbol sym = hash_find(CHILD(1, node)->str);
+            Operand op = operand_malloc(VARIABLE_O, sym->no);
+            InterCodes code3 = gen_assign_code(t1, op, NORMAL);
+            InterCodes code4 = gen_assign_code(op, place, NORMAL);
+            code2 = MergeCodes(code2, code3);
+            code2 = MergeCodes(code2, code4);
+            break;
+        }
+        default:
+            Assert(0);
+            code2 = NULL;
+    }
+    return MergeCodes(code1, code2);
+}
+
+
+InterCodes  TransLogic(node_t *node, Operand place){
+    InterCodes label1 = new_label();
+    InterCodes label2 = new_label();
+    InterCodes code0 = gen_assign_code(operand_malloc(CONSTANT_O, 0) ,place, NORMAL);
+    InterCodes code1 = TransCond(node, label1->code.u.label_no, label2->code.u.label_no);
+    InterCodes code2 = MergeCodes(label1, gen_assign_code(operand_malloc(CONSTANT_O, 1), place, NORMAL));
+    code0 = MergeCodes(code0, code1);
+    code0 = MergeCodes(code0, code2);
+    code0 = MergeCodes(code0, code2);
+    return MergeCodes(code0, label2);
+}
+
+InterCodes TransArith(node_t *node, Operand place, int kind){
+    Operand t1 = new_temp();
+    Operand t2 = new_temp();
+    InterCodes code1 = TransExp(CHILD(1, node), t1);
+    InterCodes code2 = TransExp(CHILD(3, node), t2);
+    InterCodes code3 = gen_arith_code(place, t1, t2, kind);
+    code1 = MergeCodes(code1, code2);
+    return MergeCodes(code1, code3);
+}
+
+InterCodes TransMinus(node_t *node, Operand place){
+    Operand t1 = new_temp();
+    InterCodes code1 = TransExp(CHILD(2, node), t1);
+    InterCodes code2 = code_malloc();
+    code2->code.kind = SUB;
+    code2->code.u.binop.op1 = operand_malloc(CONSTANT_O, 0);
+    code2->code.u.binop.op2 = t1;
+    code2->code.u.binop.result = place;
+    return MergeCodes(code1, code2);
 }
 
 InterCodes TransExpFun(node_t *node, Operand place){
-    // 检测error 2;
-    // error 11
     symbol sym = hash_find(CHILD(1, node)->str);
-
     Assert(node->production_id == 11 || node->production_id == 12);
-    if(node->production_id == 11)
-        TransArgs(CHILD(3, node), sym->u.func.parameter);
+    switch (node->production_id) {
+        case 11:
+        {
+            Operands var_list = malloc(sizeof(struct Operands_));
+            var_list->op = NULL;
+            var_list->nxt = NULL;
+            InterCodes code1 = TransArgs(CHILD(3, node), var_list);
+            if(strcmp(sym->name, "write")){
+                InterCodes code2 = gen_write_code(var_list->nxt->op);
+                InterCodes code3 = gen_assign_code(place, operand_malloc(CONSTANT_O, 0), NORMAL);
+                code1 = MergeCodes(code1, code2);
+                return MergeCodes(code1, code3);
+            }
+            while(var_list->nxt != NULL){
+                InterCodes code2 = gen_arg_code(var_list->nxt->op);
+                code1 = MergeCodes(code1, code2);
+                var_list->nxt = var_list->nxt->nxt;
+            }InterCodes code3 = gen_call_code(sym->name, place);
+            return MergeCodes(code1, code3);
+        }
+        case 12:
+            if(strcmp(sym->name, "read")){
+                return gen_read_code(place);
+            }else{
+                return gen_call_code(sym->name, place);
+            }
+        default:
+            Assert(0);
+            return NULL;
+    }
+}
+
+InterCodes TransExpArray(node_t *node, Operand place, Type *ret){
+    InterCodes code1 = NULL;
+    if(CHILD(1, node)->production_id == 15){
+        symbol sym = hash_find(CHILD(1, CHILD(1, node))->str);
+        Assert(sym->kind == VARIABLE);
+        *ret = sym->u.variable;
+        code1 = gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, NORMAL);
+    }else{
+        code1 = TransExpArray(CHILD(1, node), place, ret);
+    }
+    int num = str2int( CHILD(1, CHILD(3, node))->str);
+    Operand c1 = operand_malloc(CONSTANT_O, num*type_size((*ret)->u.array.elem));
+    InterCodes code2 = gen_arith_code(place, place, c1, ADD);
+    *ret = (*ret)->u.array.elem;
+    return MergeCodes(code1, code2);
+}
+
+InterCodes TransExpStruct(node_t *node, Operand place){
+    // 检测13 14
     return NULL;
 }
 
-Type SddExpArray(node_t *node, int isLeft){
-    Type syn1 = SddExp(CHILD(1, node), isLeft);
-    if(syn1->kind != ARRAY){
-        semantic_error(10, CHILD(1, node)->lineno, "use LB RB but not ARRAY variable");
-        return Error_Type;
-    }Type syn2 = SddExp(CHILD(3, node), false);
-    if(syn2->kind != BASIC || syn2->u.basic != TINT) {
-        semantic_error(12, CHILD(3, node)->lineno, "[...] use not int variable");
-        return Error_Type;
-    }
-    return syn1->u.array.elem;
+InterCodes TransId(node_t *node, Operand place){
+    return gen_assign_code(get_variable(node->str), place, NORMAL);
 }
 
-Type SddExpStruct(node_t *node, int isLeft){
-    // 检测13 14
-    Type syn1 =  SddExp(CHILD(1, node), isLeft);
-    if(syn1->kind != STRUCTURE) {
-        semantic_error(13, CHILD(1, node)->lineno, "use dot but not structure");
-        return Error_Type;
-    }Type syn2 = field_find(CHILD(3, node)->str, syn1->u.structure);
-    if(syn2 == NULL){
-        semantic_error(14,CHILD(3, node)->lineno, "the field has no match name");
-        return Error_Type;
-    }
-    return syn2;
-}
-
-Type SddId(node_t *node){
-    // 检测 error 1;
-    symbol sym = hash_find(node->str);
-    if(sym == NULL){
-        semantic_error(1, node->lineno, "variable used but not define");
-        return Error_Type;
-    }
-    if(sym->kind == FUNCTION || sym->kind == STRUCT_TAG){
-        semantic_error(1, node->lineno, "not a variable");
-        return Error_Type;
-    }
-    return sym->u.variable;
-}
-
-Type SddType(node_t *node){
+Type TransType(node_t *node){
     Assert(!strcmp(node->name, "TYPE"));
     if(!strcmp(node->str, "int")){
         return type_malloc(BASIC, TINT);
@@ -467,34 +718,158 @@ Type SddType(node_t *node){
     }
 }
 
-Type SddArray(Type inh, int size){
+InterCodes TransArgs(node_t *node, Operands ArgList){
+    Assert(node->token_val == Args);
+    Assert(node->production_id == 0 || node->production_id == 1);
+    Operand t1 = new_temp();
+    InterCodes code1 = TransExp(CHILD(1, node), t1);
+    Operands args = malloc(sizeof(struct Operands_));
+    args->nxt = ArgList->nxt;
+    args->op = t1;
+    ArgList->nxt = args->nxt;
+
+    if(node->production_id == 1){
+        InterCodes code2 = TransArgs(CHILD(3, node), ArgList);
+        code1 = MergeCodes(code1, code2);
+    }
+    return code1;
+}
+
+Type TransArray(Type inh, int size){
     Type arr = type_malloc(ARRAY, 0);
     arr->u.array.elem = inh;
     arr->u.array.size = size;
     return arr;
 }
 
-InterCodes TransReturn(node_t *node){
-    Operand t1 = new_temp();
-    InterCodes code1 = TransExp(CHILD(2, node), t1);
-    InterCodes code2 = code_malloc();
-    code2->code.kind = RETURN;
-    code2->code.u.ret.val = t1;
-    MergeCodes(code1, code2);
+InterCodes TransInt(node_t *node, Operand place){
+    return gen_assign_code(operand_malloc(CONSTANT_O, str2int(node->str)), place, NORMAL);
 }
 
-InterCodes TransIf(node_t *node){
-
+InterCodes TransFloat(node_t *node, Operand place){
+    return NULL;
 }
 
-InterCodes TransIfEl(node_t *node){
-
+void PrintOperand(Operand x){
+    switch (x->kind) {
+        case VARIABLE_O:
+            printf("v%d", x->u.var_no);
+            break;
+        case CONSTANT_O:
+            printf("#%d", x->u.value);
+            break;
+        case TEMPORARY_O:
+            printf("t%d", x->u.var_no);
+            break;
+        case ADDRESS_O:
+            printf("a%d", x->u.var_no);
+            break;
+        default:
+            Assert(0);
+    }
 }
 
-InterCodes TransWhile(node_t *node){
-
+void PrintBinop(int kind){
+    switch (kind) {
+        case ADD:
+            printf(" + ");
+            break;
+        case SUB:
+            printf(" - ");
+            break;
+        case MUL:
+            printf(" * ");
+            break;
+        case DIVI:
+            printf(" / ");
+            break;
+        default:
+            Assert(0);
+    }
 }
 
-InterCodes TransCond(node_t *node, InterCode* LabelTrue, InterCode* LabelFalse){
+void PrintAssign(InterCodes codes){
+    if(codes->code.u.assign.kind == LEFT)
+        putchar('*');
+    PrintOperand(codes->code.u.assign.left);
+    switch (codes->code.u.assign.kind) {
+        case NORMAL:
+        case LEFT:
+            printf(" := ");
+            break;
+        case GET_ADDRESS:
+            printf(" := &");
+            break;
+        case RIGHT:
+            printf(" := *");
+            break;
+        default:
+            Assert(0);
+    }
 
+
+    PrintOperand(codes->code.u.assign.right);
+}
+void PrintCodes(InterCodes codes){
+    while(codes != NULL){
+        switch (codes->code.kind) {
+            case ASSIGN:
+                PrintAssign(codes);
+                break;
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIVI:
+                PrintOperand(codes->code.u.binop.result);
+                printf(" := ");
+                PrintOperand(codes->code.u.binop.op1);
+                PrintBinop(codes->code.kind);
+                PrintOperand(codes->code.u.binop.op2);
+                break;
+            case FUNCDEF:
+                printf("FUNCTION %s :", codes->code.u.func_name);
+                break;
+            case RETURN:
+                printf("RETURN ");
+                PrintOperand(codes->code.u.op_x);
+                break;
+            case LABEL:
+                printf("LABEL label%d:", codes->code.u.label_no);
+                break;
+            case GOTO:
+                printf("GOTO label%d", codes->code.u.label_no);
+                break;
+            case CJP:
+                printf("IF ");
+                PrintOperand(codes->code.u.cjp.x);
+                printf(" %s ", codes->code.u.cjp.relop);
+                PrintOperand(codes->code.u.cjp.y);
+                printf(" GOTO label%d", codes->code.u.cjp.label_no);
+                break;
+            case CALL:
+                PrintOperand(codes->code.u.call.x);
+                printf(" := CALL %s", codes->code.u.call.name);
+                break;
+            case READ:
+                printf("READ ");
+                PrintOperand(codes->code.u.op_x);
+                break;
+            case WRITE:
+                printf("WRITE ");
+                PrintOperand(codes->code.u.op_x);
+                break;
+            case ARG:
+                printf("ARG ");
+                PrintOperand(codes->code.u.op_x);
+                break;
+            case PARAM:
+                printf("PARAM ");
+                PrintOperand(codes->code.u.op_x);
+                break;
+            default:
+                break;
+        }
+        putchar('\n');
+        codes = codes->next;
+    }
 }

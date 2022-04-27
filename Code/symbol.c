@@ -10,8 +10,10 @@ Type Error_Type = NULL;
 symbol symbol_list[HASH_SIZE] = {0};
 EnvNode envs = NULL;
 static int var_no = 0;
+int is_semantic_error = false;
 
 void semantic_error(int errorno, int lineno, char* str){
+    is_semantic_error = true;
     printf("Error type %d at Line %d: %s.\n", errorno, lineno, str);
 }
 
@@ -53,6 +55,29 @@ void type_free(Type type){
     }
 }
 
+
+
+int type_size(Type type){
+    switch (type->kind) {
+        case BASIC:
+            return 4;
+        case ARRAY:
+            return type->u.array.size * type_size(type->u.array.elem);
+        case STRUCTURE: {
+            FieldList cur = type->u.structure;
+            int size = 0;
+            while (cur != NULL) {
+                size += type_size(cur->type);
+                cur = cur->tail;
+            }
+            return size;
+        }
+        default:
+            Assert(0);
+            return 0;
+    }
+}
+
 int type_com(Type dst, Type src){
     Assert( dst != NULL && src != NULL);
     if(dst == Error_Type || src == Error_Type) return true;
@@ -88,6 +113,7 @@ FieldList field_malloc(char *name, Type inh){
     FieldList cur_field = (FieldList)malloc(sizeof(struct FieldList_));
     strncpy(cur_field->name, name, NAME_SIZE);
     cur_field->type = inh;
+    cur_field->offset = 0;
     cur_field->tail = NULL;
     return cur_field;
 }

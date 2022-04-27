@@ -45,6 +45,7 @@ struct Type_{
 struct FieldList_{
     char name[NAME_SIZE]; // 域的名字
     Type type; // 域的类型
+    int offset;
     FieldList tail;
 };
 /*
@@ -90,10 +91,12 @@ struct EnvNode_{
 
 };
 extern EnvNode envs;
+extern int is_semantic_error;
 
 Type            type_malloc     (int kind1, int kind2);
 void            type_free       (Type type);
 int             type_com        (Type dst, Type src);
+int             type_size       (Type type);
 int             array_com       (Type dst, Type src);
 
 FieldList       field_malloc    (char *name, Type inh);
