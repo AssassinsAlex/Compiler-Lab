@@ -513,7 +513,14 @@ InterCodes TransExp(node_t *node, Operand place){
 
         }
         case 14: /* struct */
-            return TransExpStruct(node, place);
+        {
+            Type ret;
+            Operand t1 = new_temp();
+            t1->kind = ADDRESS_O;
+            InterCodes code1 = TransExpStruct(node, t1, &ret);
+            InterCodes code2 = gen_assign_code(t1, place, RIGHT);
+            return MergeCodes(code1, code2);
+        }
         case 15:
             return TransId(CHILD(1, node), place);
         case 16:
@@ -593,7 +600,20 @@ InterCodes TransAssign(node_t *node, Operand place){
             break;
         }
         case 14:
-            return TransExpStruct(node, place);
+        {
+            Type ret;
+            Operand a1 = new_temp();
+            a1->kind = ADDRESS_O;
+            InterCodes code3 = TransExpStruct(node, a1, &ret);
+            InterCodes code4 = gen_assign_code(t1, a1, LEFT);
+            InterCodes code5 = gen_assign_code(a1, place, RIGHT);
+
+            code2 = MergeCodes(code2, code3);
+            code2 = MergeCodes(code2, code4);
+            code2 = MergeCodes(code2, code5);
+            break;
+        }
+
         case 15:
         {
             symbol sym = hash_find(CHILD(1, node)->str);
@@ -697,9 +717,21 @@ InterCodes TransExpArray(node_t *node, Operand place, Type *ret){
     return MergeCodes(code1, code2);
 }
 
-InterCodes TransExpStruct(node_t *node, Operand place){
-    // 检测13 14
-    return NULL;
+InterCodes TransExpStruct(node_t *node, Operand place, Type *ret){
+    InterCodes code1 = NULL;
+    if(CHILD(1, node)->production_id == 15){
+        symbol sym = hash_find(CHILD(1, CHILD(1, node))->str);
+        Assert(sym->kind == VARIABLE);
+        *ret = sym->u.variable;
+        code1 = gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, GET_ADDRESS);
+    }else{
+        code1 = TransExpStruct(CHILD(1, node), place, ret);
+    }
+    FieldList field = field_find(CHILD(3, node)->str, (*ret)->u.structure);
+    Operand c1 = operand_malloc(CONSTANT_O, field->offset);
+    InterCodes code2 = gen_arith_code(place, place, c1, ADD);
+    *ret = field->type;
+    return MergeCodes(code1, code2);
 }
 
 InterCodes TransId(node_t *node, Operand place){

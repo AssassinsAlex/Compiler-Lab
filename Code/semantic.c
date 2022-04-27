@@ -474,7 +474,7 @@ Type SddExpStruct(node_t *node, int isLeft){
     if(syn1->kind != STRUCTURE) {
         semantic_error(13, CHILD(1, node)->lineno, "use dot but not structure");
         return Error_Type;
-    }Type syn2 = field_find(CHILD(3, node)->str, syn1->u.structure);
+    }Type syn2 = field_find(CHILD(3, node)->str, syn1->u.structure)->type;
     if(syn2 == NULL){
         semantic_error(14,CHILD(3, node)->lineno, "the field has no match name");
         return Error_Type;

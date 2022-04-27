@@ -101,7 +101,7 @@ int             array_com       (Type dst, Type src);
 
 FieldList       field_malloc    (char *name, Type inh);
 void            field_free      (FieldList field);
-Type            field_find      (char *name, FieldList field);
+FieldList       field_find      (char *name, FieldList field);
 int             field_com       (FieldList dst, FieldList src);
 
 symbol          symbol_add      (node_t *node, Type inh, int sym_kind);

@@ -72,7 +72,7 @@ InterCodes  TransIfEl               (node_t *node);
 
 InterCodes  TransExpFun             (node_t *node, Operand place);
 InterCodes  TransExpArray           (node_t *node, Operand place, Type *ret);
-InterCodes  TransExpStruct          (node_t *node, Operand place);
+InterCodes  TransExpStruct          (node_t *node, Operand place, Type *ret);
 
 
 InterCodes  TransCond               (node_t *node, int LabelTrue, int LabelFalse);

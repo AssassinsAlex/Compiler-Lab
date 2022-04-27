@@ -125,10 +125,10 @@ void field_free(FieldList field){
     free(field);
 }
 
-Type field_find(char *name, FieldList field){
+FieldList field_find(char *name, FieldList field){
     while(field != NULL){
         if(!strncmp(name, field->name, NAME_SIZE))
-            return field->type;
+            return field;
         field = field->tail;
     }return NULL;
 }

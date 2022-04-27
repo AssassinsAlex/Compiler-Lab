@@ -1,9 +1,14 @@
 
 int main(int i, float j){
-    int a[10][7][5];
-    int b;
-    int c;
-    c = a[1][4][3] = a[2][3][4];
+    struct{
+        int a;
+        struct {
+            int c;
+            int d;
+        } op2;
+        int b;
+    }op1;
+    op1.op2.d = 2;
     return 1;
 }
 
