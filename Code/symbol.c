@@ -197,7 +197,7 @@ void fun_unlock(FieldList field){
 
 void symbol_free(symbol sym){
     switch (sym->kind) {
-        case VARIABLE:
+        case VARIABLE:case PARAM_V:
             type_free(sym->u.variable);
             break;
         case FUNCTION:

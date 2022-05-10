@@ -8,3 +8,4 @@ parser
 /.idea/
 /.vscode/
 /cmake-build-debug/
+*.ir

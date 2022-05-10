@@ -5,7 +5,7 @@
 
 typedef struct Operand_* Operand;
 struct Operand_ {
-    enum  {VARIABLE_O, CONSTANT_O, ADDRESS_O, TEMPORARY_O} kind;
+    enum {VARIABLE_O, CONSTANT_O, ADDRESS_O, TEMPORARY_O} kind;
     union {
         int var_no;
         int value;
@@ -19,9 +19,10 @@ struct Operands_{
 };
 
 typedef struct InterCode{
-    enum {LABEL, FUNCDEF, ASSIGN, ADD, SUB, MUL, DIVI, GOTO, CJP, RETURN, ARG, CALL, READ, PARAM, WRITE} kind;
+    enum {LABEL, FUNCDEF, ASSIGN, ADD, SUB, MUL, DIVI, GOTO, CJP, RETURN, ARG, DEC, CALL, READ, PARAM, WRITE} kind;
     union {
         int label_no;
+        struct {Operand x; int size;} dec;
         char func_name[NAME_SIZE];
         struct {Operand right, left; enum{NORMAL, GET_ADDRESS, RIGHT, LEFT}kind;} assign;
         struct {Operand result, op1, op2;} binop;
@@ -48,7 +49,7 @@ InterCodes  TransExtDef             (node_t *node);
 void        TransExtDecList         (node_t *node, Type inh);
 Type        TransSpecifier          (node_t *node);
 Type        TransStructSpecifier    (node_t *node);
-void        TransVarDec             (node_t *node, Type inh, Type structure);
+InterCodes  TransVarDec             (node_t *node, Type inh, Type structure);
 InterCodes  TransFunDef             (node_t *node, Type inh);
 void        TransFunDec             (node_t *node, Type inh);
 void        TransVarList            (node_t *node);

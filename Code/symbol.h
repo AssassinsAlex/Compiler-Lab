@@ -58,7 +58,7 @@ struct list_int{
 typedef struct symbol_* symbol;
 struct symbol_
 {
-    enum {VARIABLE, FUNCTION, STRUCT_TAG} kind;
+    enum {VARIABLE, FUNCTION, STRUCT_TAG, PARAM_V} kind;
     union {
         Type variable;
         Type struct_tag;

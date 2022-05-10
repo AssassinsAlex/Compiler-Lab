@@ -21,6 +21,7 @@ InterCodes gen_assign_code(Operand right, Operand left, int kind){
 }
 
 InterCodes gen_arith_code(Operand result, Operand op1, Operand op2, int kind){
+    if(result == NULL) return NULL;
     InterCodes code = code_malloc();
     code->code.kind = kind;
     code->code.u.binop.op1 = op1;
@@ -46,17 +47,18 @@ InterCodes gen_goto_code(int label){
     return code;
 }
 
-InterCodes gen_read_code(Operand x){
+InterCodes gen_opx_code(Operand x, int kind){
     InterCodes code = code_malloc();
-    code->code.kind = READ;
+    code->code.kind = kind;
     code->code.u.op_x = x;
     return code;
 }
 
-InterCodes gen_write_code(Operand x){
+InterCodes gen_dec_code(Operand x, int size){
     InterCodes code = code_malloc();
-    code->code.kind = WRITE;
-    code->code.u.op_x = x;
+    code->code.kind = DEC;
+    code->code.u.dec.x = x;
+    code->code.u.dec.size = size;
     return code;
 }
 
@@ -69,31 +71,10 @@ InterCodes gen_call_code(char *name, Operand x){
     return code;
 }
 
-InterCodes gen_arg_code(Operand x){
-    InterCodes code = code_malloc();
-    code->code.kind = ARG;
-    code->code.u.op_x = x;
-    return code;
-}
-
-InterCodes gen_parm_code(Operand x){
-    InterCodes code = code_malloc();
-    code->code.kind = PARAM;
-    code->code.u.op_x = x;
-    return code;
-}
-
 InterCodes gen_func_code(char *name){
     InterCodes code = code_malloc();
     code->code.kind = FUNCDEF;
     strncpy(code->code.u.func_name, name, NAME_SIZE);
-    return code;
-}
-
-InterCodes gen_ret_code(Operand x){
-    InterCodes code = code_malloc();
-    code->code.kind = RETURN;
-    code->code.u.op_x = x;
     return code;
 }
 
@@ -120,7 +101,7 @@ Operand new_temp(){
 
 Operand get_variable(char *name){
     symbol sym = hash_find(name);
-    Assert(sym->kind == VARIABLE);
+    Assert(sym->kind == VARIABLE || sym->kind == PARAM_V);
     return operand_malloc(VARIABLE_O, sym->no);
 }
 
@@ -245,14 +226,16 @@ Type TransStructSpecifier(node_t *node){
     }
 }
 
-void TransVarDec(node_t *node, Type inh, Type structure){
+InterCodes TransVarDec(node_t *node, Type inh, Type structure){
     Assert(node->token_val == VarDec);
     switch (node->production_id)
     {
         case 0:
             Assert(!strcmp(CHILD(1, node)->name, "ID"));
             if(structure == NULL){
-                symbol_add(CHILD(1, node), inh, VARIABLE);
+                symbol sym = symbol_add(CHILD(1, node), inh, VARIABLE);
+                if(inh->kind == ARRAY || inh->kind == STRUCTURE)
+                    return gen_dec_code(operand_malloc(VARIABLE_O, sym->no), type_size(inh));
             }else{
                 Assert(structure->kind == STRUCTURE);
                 FieldList cur_field = field_malloc(CHILD(1, node)->str, inh);
@@ -262,15 +245,15 @@ void TransVarDec(node_t *node, Type inh, Type structure){
                 cur_field->tail = structure->u.structure;
                 structure->u.structure = cur_field;
             }
-            break;
+            return NULL;
         case 1:
         {
             Type syn = TransArray(inh, str2int(CHILD(3, node)->str));
-            TransVarDec(CHILD(1, node), syn, structure);
-            break;
+            return TransVarDec(CHILD(1, node), syn, structure);
         }
         default:
             Assert(0);
+            return NULL;
     }
 }
 
@@ -286,7 +269,8 @@ static InterCodes TransFunVar_(node_t *node){
             Assert(cur->kind != FUNCTION);
             cur->u.variable->func_locked = true;
             if(cur->kind == VARIABLE) {
-                InterCodes code2 = gen_parm_code(operand_malloc(VARIABLE_O, cur->no));
+                cur->kind = PARAM_V;
+                InterCodes code2 = gen_opx_code(operand_malloc(VARIABLE_O, cur->no), PARAM);
                 code1 = MergeCodes(code1, code2);
             }
             cur = cur->list_nxt;
@@ -366,14 +350,16 @@ InterCodes TransDec(node_t *node, Type inh, Type structure){
     switch (node->production_id)
     {
         case 0:
-            TransVarDec(CHILD(1, node), inh, structure);
-            return NULL;
+            return TransVarDec(CHILD(1, node), inh, structure);
         case 1:
-            TransVarDec(CHILD(1, node), inh, structure);
+        {
+            InterCodes code1 = TransVarDec(CHILD(1, node), inh, structure);
             Operand t1 = new_temp();
-            InterCodes code1 = TransExp(CHILD(3, node), t1);
-            InterCodes code2 = gen_assign_code(t1, get_variable(CHILD(1, CHILD(1, node))->str), NORMAL);
-            return MergeCodes(code1, code2);
+            InterCodes code2 = TransExp(CHILD(3, node), t1);
+            InterCodes code3 = gen_assign_code(t1, get_variable(CHILD(1, CHILD(1, node))->str), NORMAL);
+            code1 = MergeCodes(code1, code2);
+            return MergeCodes(code1, code3);
+        }
         default:
             Assert(0);
             return NULL;
@@ -434,7 +420,7 @@ InterCodes TransStmt(node_t *node){
 InterCodes TransReturn(node_t *node){
     Operand t1 = new_temp();
     InterCodes code1 = TransExp(CHILD(2, node), t1);
-    InterCodes code2 = gen_ret_code(t1);
+    InterCodes code2 = gen_opx_code(t1, RETURN);
     return MergeCodes(code1, code2);
 }
 
@@ -657,11 +643,7 @@ InterCodes TransArith(node_t *node, Operand place, int kind){
 InterCodes TransMinus(node_t *node, Operand place){
     Operand t1 = new_temp();
     InterCodes code1 = TransExp(CHILD(2, node), t1);
-    InterCodes code2 = code_malloc();
-    code2->code.kind = SUB;
-    code2->code.u.binop.op1 = operand_malloc(CONSTANT_O, 0);
-    code2->code.u.binop.op2 = t1;
-    code2->code.u.binop.result = place;
+    InterCodes code2 = gen_arith_code(place, operand_malloc(CONSTANT_O, 0), t1, SUB);
     return MergeCodes(code1, code2);
 }
 
@@ -675,22 +657,22 @@ InterCodes TransExpFun(node_t *node, Operand place){
             var_list->op = NULL;
             var_list->nxt = NULL;
             InterCodes code1 = TransArgs(CHILD(3, node), var_list);
-            if(strcmp(sym->name, "write")){
-                InterCodes code2 = gen_write_code(var_list->nxt->op);
-                InterCodes code3 = gen_assign_code(place, operand_malloc(CONSTANT_O, 0), NORMAL);
+            if(!strcmp(sym->name, "write")){
+                InterCodes code2 = gen_opx_code(var_list->nxt->op, WRITE);
+                InterCodes code3 = gen_assign_code(operand_malloc(CONSTANT_O, 0), place, NORMAL);
                 code1 = MergeCodes(code1, code2);
                 return MergeCodes(code1, code3);
             }
             while(var_list->nxt != NULL){
-                InterCodes code2 = gen_arg_code(var_list->nxt->op);
+                InterCodes code2 = gen_opx_code(var_list->nxt->op, ARG);
                 code1 = MergeCodes(code1, code2);
                 var_list->nxt = var_list->nxt->nxt;
             }InterCodes code3 = gen_call_code(sym->name, place);
             return MergeCodes(code1, code3);
         }
         case 12:
-            if(strcmp(sym->name, "read")){
-                return gen_read_code(place);
+            if(!strcmp(sym->name, "read")){
+                return gen_opx_code(place, READ);
             }else{
                 return gen_call_code(sym->name, place);
             }
@@ -704,26 +686,35 @@ InterCodes TransExpArray(node_t *node, Operand place, Type *ret){
     InterCodes code1 = NULL;
     if(CHILD(1, node)->production_id == 15){
         symbol sym = hash_find(CHILD(1, CHILD(1, node))->str);
-        Assert(sym->kind == VARIABLE);
+        Assert(sym->kind == VARIABLE || sym->kind == PARAM_V);
         *ret = sym->u.variable;
-        code1 = gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, NORMAL);
+        if(sym->kind == VARIABLE)
+            code1 = gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, GET_ADDRESS);
+        else
+            code1 = gen_assign_code(operand_malloc(VARIABLE, sym->no), place, NORMAL);
     }else{
         code1 = TransExpArray(CHILD(1, node), place, ret);
     }
-    int num = str2int( CHILD(1, CHILD(3, node))->str);
-    Operand c1 = operand_malloc(CONSTANT_O, num*type_size((*ret)->u.array.elem));
-    InterCodes code2 = gen_arith_code(place, place, c1, ADD);
+    Operand t1 = new_temp();
+    InterCodes code2 = TransExp(CHILD(3, node), t1);
+    InterCodes code3 = gen_arith_code(t1, t1, operand_malloc(CONSTANT_O, type_size(*ret)), MUL);
+    InterCodes code4 = gen_arith_code(place, place, t1, ADD);
     *ret = (*ret)->u.array.elem;
-    return MergeCodes(code1, code2);
+    code1 = MergeCodes(code1, code2);
+    code1 = MergeCodes(code1, code3);
+    return MergeCodes(code1, code4);
 }
 
 InterCodes TransExpStruct(node_t *node, Operand place, Type *ret){
     InterCodes code1 = NULL;
     if(CHILD(1, node)->production_id == 15){
         symbol sym = hash_find(CHILD(1, CHILD(1, node))->str);
-        Assert(sym->kind == VARIABLE);
+        Assert(sym->kind == VARIABLE || sym->kind == PARAM_V);
         *ret = sym->u.variable;
-        code1 = gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, GET_ADDRESS);
+        if(sym->kind == VARIABLE)
+            code1 = gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, GET_ADDRESS);
+        else
+            code1 = gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, NORMAL);
     }else{
         code1 = TransExpStruct(CHILD(1, node), place, ret);
     }
@@ -735,7 +726,11 @@ InterCodes TransExpStruct(node_t *node, Operand place, Type *ret){
 }
 
 InterCodes TransId(node_t *node, Operand place){
-    return gen_assign_code(get_variable(node->str), place, NORMAL);
+    symbol sym = hash_find(node->str);
+    Assert(sym->kind == VARIABLE || sym->kind == PARAM_V);
+    if(sym->u.variable->kind == STRUCTURE && sym->kind == VARIABLE)
+        return gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, GET_ADDRESS);
+    return gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, NORMAL);
 }
 
 Type TransType(node_t *node){
@@ -758,9 +753,9 @@ InterCodes TransArgs(node_t *node, Operands ArgList){
     Operands args = malloc(sizeof(struct Operands_));
     args->nxt = ArgList->nxt;
     args->op = t1;
-    ArgList->nxt = args->nxt;
+    ArgList->nxt = args;
 
-    if(node->production_id == 1){
+    if(node->production_id == 0){
         InterCodes code2 = TransArgs(CHILD(3, node), ArgList);
         code1 = MergeCodes(code1, code2);
     }
@@ -838,10 +833,17 @@ void PrintAssign(InterCodes codes){
         default:
             Assert(0);
     }
-
-
     PrintOperand(codes->code.u.assign.right);
 }
+
+void PrintArith(InterCodes codes){
+    PrintOperand(codes->code.u.binop.result);
+    printf(" := ");
+    PrintOperand(codes->code.u.binop.op1);
+    PrintBinop(codes->code.kind);
+    PrintOperand(codes->code.u.binop.op2);
+}
+
 void PrintCodes(InterCodes codes){
     while(codes != NULL){
         switch (codes->code.kind) {
@@ -852,11 +854,7 @@ void PrintCodes(InterCodes codes){
             case SUB:
             case MUL:
             case DIVI:
-                PrintOperand(codes->code.u.binop.result);
-                printf(" := ");
-                PrintOperand(codes->code.u.binop.op1);
-                PrintBinop(codes->code.kind);
-                PrintOperand(codes->code.u.binop.op2);
+                PrintArith(codes);
                 break;
             case FUNCDEF:
                 printf("FUNCTION %s :", codes->code.u.func_name);
@@ -866,7 +864,7 @@ void PrintCodes(InterCodes codes){
                 PrintOperand(codes->code.u.op_x);
                 break;
             case LABEL:
-                printf("LABEL label%d:", codes->code.u.label_no);
+                printf("LABEL label%d :", codes->code.u.label_no);
                 break;
             case GOTO:
                 printf("GOTO label%d", codes->code.u.label_no);
@@ -881,6 +879,11 @@ void PrintCodes(InterCodes codes){
             case CALL:
                 PrintOperand(codes->code.u.call.x);
                 printf(" := CALL %s", codes->code.u.call.name);
+                break;
+            case DEC:
+                printf("DEC ");
+                PrintOperand(codes->code.u.dec.x);
+                printf(" %d", codes->code.u.dec.size);
                 break;
             case READ:
                 printf("READ ");

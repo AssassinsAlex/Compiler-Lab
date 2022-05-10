@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     yyrestart(f);
     yyparse();
     if(!get_syn_error){
-        print_tree(CST, 0);
+        //print_tree(CST, 0);
         SddProgram(CST);
     }
     if(!is_semantic_error) {
