@@ -51,9 +51,9 @@
 %left OR
 %left AND
 %left RELOP
-%left PLUS SUB
+%left PLUS MINUS
 %left STAR DIV
-%right MINUS NOT
+%right NOT
 %left LP RP LB RB DOT
 
 %nonassoc LOWER_THAN_ELSE

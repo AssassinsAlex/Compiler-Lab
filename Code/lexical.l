@@ -32,7 +32,7 @@ RELOP >|<|>=|<=|==|!=
 PLUS \+
 MINUS -
 STAR \*
-DIV \\
+DIV \/
 AND &&
 OR \|\|
 DOT \.
