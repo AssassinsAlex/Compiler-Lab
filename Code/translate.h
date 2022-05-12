@@ -84,5 +84,5 @@ InterCodes  TransLogic              (node_t *node, Operand place);
 InterCodes  TransInt                (node_t *node, Operand place);
 InterCodes  TransFloat              (node_t *node, Operand place);
 
-void        PrintCodes              (InterCodes codes);
+void        PrintCodes              (InterCodes codes, char *filename);
 #endif

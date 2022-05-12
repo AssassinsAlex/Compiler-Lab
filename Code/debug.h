@@ -4,7 +4,7 @@
 #include <string.h>
 #include <assert.h>
 
-#define ASSERT_ON
+//#define ASSERT_ON
 
 #ifdef ASSERT_ON
 #define TODO() printf("need to do\n"); //Assert(0)

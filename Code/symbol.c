@@ -25,6 +25,7 @@ Type type_malloc(int kind1, int kind2){
             return FLOAT_Type_const;
         }else{
             Assert(0);
+            return NULL;
         }
     }else{
         Type ret = (Type)malloc(sizeof(struct Type_));
@@ -91,6 +92,7 @@ int type_com(Type dst, Type src){
             return field_com(dst->u.structure, src->u.structure);
         default:
             Assert(0);
+            return 0;
     }
 }
 

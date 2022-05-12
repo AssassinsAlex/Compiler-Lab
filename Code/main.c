@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     }
     if(!is_semantic_error) {
         InterCodes codes = TransProgram(CST);
-        PrintCodes(codes);
+        PrintCodes(codes, argv[2]);
     }
     return 0;
 }
