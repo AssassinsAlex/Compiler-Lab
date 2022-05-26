@@ -653,8 +653,6 @@ Type SddExp(node_t *node, int isLeft){
         switch (node->production_id) {
             case 0:
             case 8:
-            case 11:
-            case 12:
             case 13:
             case 14:
             case 15:
@@ -699,7 +697,7 @@ Type SddExp(node_t *node, int isLeft){
         case 9:
             return CheckArithm1(SddExp(CHILD(2, node), false), node->lineno);
         case 10:
-            return CheckInt1(SddExp(CHILD(1, node), false), node->lineno);
+            return CheckInt1(SddExp(CHILD(2, node), false), node->lineno);
         case 11:
         case 12:
             return SddExpFun(node, isLeft);
@@ -728,6 +726,9 @@ void SddArgs(node_t *node, FieldList ArgList){
         semantic_error(9, node->lineno, "the type of arg conflict");
     if(node->production_id == 0)
         SddArgs(CHILD(3, node), ArgList->tail);
+    else if(ArgList->tail != NULL)
+        semantic_error(9, node->lineno, "the type of arg conflict");
+
 }
 
 Type SddExpFun(node_t *node, int isLeft){
