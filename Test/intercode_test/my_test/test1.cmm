@@ -1,0 +1,23 @@
+int check(int a[10], int x){
+    if(x >= 10)
+        write(10);
+    else if(x < 0)
+        write(-1);
+    else
+        write(a[x]);
+    return 0;
+}
+
+int main(){
+    struct op{
+        int a[10][10];
+    }s;
+    int i = 0;
+    int j = 0;
+    while(i < 100){
+        s.a[i/10][i - i/10*10] = i;
+        check(s.a[i/10], i - i/10*10);
+        i = i + 1;
+    }
+
+}

@@ -400,7 +400,7 @@ Type SddExp(node_t *node, int isLeft){
         case 9:
             return CheckArithm1(SddExp(CHILD(2, node), false), node->lineno);
         case 10:
-            return CheckInt1(SddExp(CHILD(1, node), false), node->lineno);
+            return CheckInt1(SddExp(CHILD(2, node), false), node->lineno);
         case 11:
         case 12:
             return SddExpFun(node, isLeft);

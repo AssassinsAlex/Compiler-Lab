@@ -604,6 +604,8 @@ InterCodes TransAssign(node_t *node, Operand place){
         {
             symbol sym = hash_find(CHILD(1, node)->str);
             Operand op = operand_malloc(VARIABLE_O, sym->no);
+            if (sym->u.variable->kind == ARRAY)
+                sym->kind = PARAM_V;
             InterCodes code3 = gen_assign_code(t1, op, NORMAL);
             InterCodes code4 = gen_assign_code(op, place, NORMAL);
             code2 = MergeCodes(code2, code3);
