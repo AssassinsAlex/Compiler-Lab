@@ -2,6 +2,7 @@
 // Created by asassin on 22-4-24.
 //
 #include "symbol.h"
+#include "translate.h"
 
 static Type INT_Type_const = NULL;
 static Type FLOAT_Type_const = NULL;
@@ -173,7 +174,7 @@ symbol symbol_add(node_t *node, Type inh, int sym_kind){
             //sym->u.func.func_used = NULL;
             break;
         case VARIABLE:
-            sym->no = var_no++;
+            sym->op = operand_malloc(VARIABLE_O, var_no++);
             sym->u.variable = inh;
             break;
         case STRUCT_TAG:

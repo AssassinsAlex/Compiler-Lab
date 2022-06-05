@@ -69,11 +69,10 @@ struct symbol_
             //struct list_int *func_used;
         } func;
     }u;
-    int no;
-    int offset;
     char name[NAME_SIZE];
     int first_lineno;
     void *belong;
+    struct Operand_* op;
     symbol hash_nxt;
     symbol list_nxt;
 };

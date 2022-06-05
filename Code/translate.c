@@ -7,16 +7,21 @@ InterCodes code_malloc(){
     code->next = NULL;
     code->prev = NULL;
     code->tail = code;
+    code->code.op_num = 0;
+    code->code.nxt_code[0] = -1;
+    code->code.nxt_code[1] = -1;
+    code->code.nxt_code[2] = -1;
     return code;
 }
 
 InterCodes gen_assign_code(Operand right, Operand left, int kind){
     if(left == NULL) return NULL;
     InterCodes code = code_malloc();
+    code->code.op_num = 2;
     code->code.kind = ASSIGN;
     code->code.u.assign.kind = kind;
-    code->code.u.assign.right = right;
     code->code.u.assign.left = left;
+    code->code.u.assign.right = right;
     return code;
 }
 
@@ -24,15 +29,17 @@ InterCodes gen_arith_code(Operand result, Operand op1, Operand op2, int kind){
     if(result == NULL) return NULL;
     InterCodes code = code_malloc();
     code->code.kind = kind;
+    code->code.op_num = 3;
+    code->code.u.binop.result = result;
     code->code.u.binop.op1 = op1;
     code->code.u.binop.op2 = op2;
-    code->code.u.binop.result = result;
     return code;
 }
 
 InterCodes gen_cjp_code(Operand x, Operand y, char *relop, int label){
     InterCodes code = code_malloc();
     code->code.kind = CJP;
+    code->code.op_num = 2;
     code->code.u.cjp.label_no = label;
     code->code.u.cjp.x = x;
     code->code.u.cjp.y = y;
@@ -50,6 +57,7 @@ InterCodes gen_goto_code(int label){
 InterCodes gen_opx_code(Operand x, int kind){
     InterCodes code = code_malloc();
     code->code.kind = kind;
+    code->code.op_num = 1;
     code->code.u.op_x = x;
     return code;
 }
@@ -57,6 +65,7 @@ InterCodes gen_opx_code(Operand x, int kind){
 InterCodes gen_dec_code(Operand x, int size){
     InterCodes code = code_malloc();
     code->code.kind = DEC;
+    code->code.op_num = 1;
     code->code.u.dec.x = x;
     code->code.u.dec.size = size;
     return code;
@@ -66,6 +75,7 @@ InterCodes gen_call_code(char *name, Operand x){
     if(x == NULL) x = new_temp();
     InterCodes code = code_malloc();
     code->code.kind = CALL;
+    code->code.op_num = 1;
     code->code.u.call.x = x;
     strncpy(code->code.u.call.name, name, NAME_SIZE);
     return code;
@@ -78,9 +88,19 @@ InterCodes gen_func_code(char *name){
     return code;
 }
 
+InterCodes new_label(){
+    InterCodes codes = code_malloc();
+    codes->code.kind = LABEL;
+    codes->code.u.label_no = label_num++;
+    return codes;
+}
+
 Operand operand_malloc(int kind, int num){
     Operand op = malloc(sizeof(struct Operand_));
     op->kind = kind;
+    op->nxt_code = -1;
+    op->reg_no = -1;
+    op->offset = -1;
     switch (kind) {
         case VARIABLE_O:
         case TEMPORARY_O:
@@ -102,15 +122,9 @@ Operand new_temp(){
 Operand get_variable(char *name){
     symbol sym = hash_find(name);
     Assert(sym->kind == VARIABLE || sym->kind == PARAM_V);
-    return operand_malloc(VARIABLE_O, sym->no);
+    return sym->op;
 }
 
-InterCodes new_label(){
-    InterCodes codes = code_malloc();
-    codes->code.kind = LABEL;
-    codes->code.u.label_no = label_num++;
-    return codes;
-}
 
 InterCodes MergeCodes(InterCodes code1, InterCodes code2){
     if(code1 == NULL) return code2;
@@ -235,7 +249,7 @@ InterCodes TransVarDec(node_t *node, Type inh, Type structure){
             if(structure == NULL){
                 symbol sym = symbol_add(CHILD(1, node), inh, VARIABLE);
                 if(inh->kind == ARRAY || inh->kind == STRUCTURE)
-                    return gen_dec_code(operand_malloc(VARIABLE_O, sym->no), type_size(inh));
+                    return gen_dec_code(sym->op, type_size(inh));
             }else{
                 Assert(structure->kind == STRUCTURE);
                 FieldList cur_field = field_malloc(CHILD(1, node)->str, inh);
@@ -270,7 +284,7 @@ static InterCodes TransFunVar_(node_t *node){
             cur->u.variable->func_locked = true;
             if(cur->kind == VARIABLE) {
                 cur->kind = PARAM_V;
-                InterCodes code2 = gen_opx_code(operand_malloc(VARIABLE_O, cur->no), PARAM);
+                InterCodes code2 = gen_opx_code(cur->op, PARAM);
                 code1 = MergeCodes(code2, code1);
             }
             cur = cur->list_nxt;
@@ -603,11 +617,10 @@ InterCodes TransAssign(node_t *node, Operand place){
         case 15:
         {
             symbol sym = hash_find(CHILD(1, node)->str);
-            Operand op = operand_malloc(VARIABLE_O, sym->no);
             if (sym->u.variable->kind == ARRAY)
                 sym->kind = PARAM_V;
-            InterCodes code3 = gen_assign_code(t1, op, NORMAL);
-            InterCodes code4 = gen_assign_code(op, place, NORMAL);
+            InterCodes code3 = gen_assign_code(t1, sym->op, NORMAL);
+            InterCodes code4 = gen_assign_code(sym->op, place, NORMAL);
             code2 = MergeCodes(code2, code3);
             code2 = MergeCodes(code2, code4);
             break;
@@ -712,8 +725,8 @@ InterCodes TransId(node_t *node, Operand place, Type *ret){
         *ret = sym->u.variable;
     Assert(sym->kind == VARIABLE || sym->kind == PARAM_V);
     if((sym->u.variable->kind == STRUCTURE || sym->u.variable->kind == ARRAY) && sym->kind == VARIABLE)
-        return gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, GET_ADDRESS);
-    return gen_assign_code(operand_malloc(VARIABLE_O, sym->no), place, NORMAL);
+        return gen_assign_code(sym->op, place, GET_ADDRESS);
+    return gen_assign_code(sym->op, place, NORMAL);
 }
 
 Type TransType(node_t *node){

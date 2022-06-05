@@ -10,6 +10,9 @@ struct Operand_ {
         int var_no;
         int value;
     } u;
+    int reg_no;
+    int nxt_code;
+    int offset;
 };
 
 typedef struct Operands_* Operands;
@@ -24,12 +27,14 @@ typedef struct InterCode{
         int label_no;
         struct {Operand x; int size;} dec;
         char func_name[NAME_SIZE];
-        struct {Operand right, left; enum{NORMAL, GET_ADDRESS, RIGHT, LEFT}kind;} assign;
+        struct {Operand left, right; enum{NORMAL, GET_ADDRESS, RIGHT, LEFT}kind;} assign;
         struct {Operand result, op1, op2;} binop;
         struct {Operand x, y; char relop[16];int label_no;} cjp;
         struct {Operand x; char name[NAME_SIZE];} call;
         Operand op_x;
     }u;
+    int op_num;
+    int nxt_code[3];
 }InterCode;
 
 typedef struct InterCodes_* InterCodes;
@@ -42,7 +47,7 @@ InterCodes  code_malloc             ();
 Operand     new_temp                ();
 Operand     get_variable            (char* name);
 InterCodes  MergeCodes              (InterCodes code1, InterCodes code2);
-
+Operand     operand_malloc          (int kind, int num);
 InterCodes  TransProgram            (node_t *node);
 InterCodes  TransExtDefList         (node_t *node);
 InterCodes  TransExtDef             (node_t *node);
@@ -84,5 +89,5 @@ InterCodes  TransLogic              (node_t *node, Operand place);
 InterCodes  TransInt                (node_t *node, Operand place);
 InterCodes  TransFloat              (node_t *node, Operand place);
 
-void        PrintCodes              (InterCodes codes, char *filename);
+void        DividingBlock           (InterCodes codes, char *filename);
 #endif
