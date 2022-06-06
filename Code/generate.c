@@ -1,11 +1,11 @@
 #include "translate.h"
 FILE *output_file;
 
-enum {t0 = 0, t1, t2, t3, t4, t5, t6, t7, t8, t9, s0, s1, s2, s3, s4, s5, s6, s7, fp, v0, v1, a0, a1, a2, a3, z0, at, k0, k1, gp, sp, ra} reg_no;
+enum {t0 = 0, t1, t2, t3, t4, t5, t6, t7, t8, t9, s0, s1, s2, s3, s4, s5, s6, s7, a0, a1, a2, a3, fp, v0, v1,  z0, at, k0, k1, gp, sp, ra} reg_no;
 Operand reg[32];
 char* reg_name[] = {"$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$t8", "$t9",
-                    "$s0","$s1", "$s2","$s3", "$s4", "$s5", "$s6", "$s7", "$fp","$v0",
-                    "$v1", "$a0", "$a1", "$a2", "$a3", "$0", "$at", "$k0", "$k1", "$gp", "$sp", "$ra"};
+                    "$s0","$s1", "$s2","$s3", "$s4", "$s5", "$s6", "$s7", "$a0", "$a1", "$a2", "$a3",
+                    "$fp", "$v0", "$v1", "$0", "$at", "$k0", "$k1", "$gp", "$sp", "$ra"};
 
 #define FRAMESIZE  4*10
 
@@ -14,6 +14,8 @@ struct stack_node{
     int sp_offset;
     int arg_count;
     Operands arg_list;
+    int param_count;
+    int st_lk;
 }func_status;
 
 
@@ -48,6 +50,8 @@ void _allocate(Operand x, int r){
 
 void Save(Operand x){
     if(x->offset < 0){
+        if(func_status.st_lk)
+            return;
         fprintf(output_file, "addi $sp, $sp, -4\n");
         fprintf(output_file, "sw %s, 0($sp)\n", reg_name[x->reg_no]);
         func_status.sp_offset += 4;
@@ -56,27 +60,39 @@ void Save(Operand x){
         fprintf(output_file, "sw %s, -%d($fp)\n", reg_name[x->reg_no], x->offset);
 }
 
+void _free(Operand x){
+    reg[x->reg_no] = NULL;
+    x->reg_no = -1;
+}
+
+void SaveFree(int r){
+    if(reg[r] != NULL) {
+        Save(reg[r]);
+        _free(reg[r]);
+    }
+}
+
 void Free(Operand x){
     if(x->nxt_code > 0) return;
-    if(x->nxt_code == -1 && x->kind == VARIABLE_O){
+    if(x->kind == VARIABLE_O){
         Save(x);
-    }reg[x->reg_no] = NULL;
-    x->reg_no = -1;
+    }
+    _free(x);
 }
 
 int allocate(Operand x){
     if(x->reg_no >= 0)
         return x->reg_no;
     for(int i = 0; i <= s7; i++){
-        if(reg[i] == NULL || reg[i]->nxt_code == -2) {
+        if(reg[i] == NULL) {
             _allocate(x, i);
             return i;
         }
     }
     for(int i = 0; i <= s7; i++){
         if(reg[i]->nxt_code < 0){
+            Free(reg[i]);
             _allocate(x, i);
-            Free(x);
             return i;
         }
     }
@@ -87,8 +103,8 @@ int allocate(Operand x){
             r = i;
             max = reg[i]->nxt_code;
         }
-    }_allocate(x, r);
-    Save(x);
+    } Save(reg[r]);
+    _allocate(x, r);
     return r;
 }
 
@@ -122,11 +138,12 @@ void prologue(InterCodes codes){
         func_status.op[i] = NULL;
     func_status.sp_offset = FRAMESIZE;
     func_status.arg_count = 0;
+    func_status.param_count = 0;
     func_status.arg_list = NULL;
+    func_status.st_lk = false;
     while(cur != NULL && cur->code.kind != FUNCDEF){
         switch (cur->code.kind) {
             case LABEL:case GOTO:case FUNCDEF:
-            case PARAM:
                 break;
             case ASSIGN:
                 allocate_stack(cur->code.u.assign.left, 4);
@@ -142,16 +159,14 @@ void prologue(InterCodes codes){
                 allocate_stack(cur->code.u.cjp.y, 4);
                 break;
             case RETURN:case WRITE:case READ:case ARG:
-            case CALL:
+            case CALL:case PARAM:
                 allocate_stack(cur->code.u.op_x, 4);
                 break;
-
             case DEC:
                 allocate_stack(cur->code.u.dec.x, cur->code.u.dec.size);
                 break;
         }cur = cur->next;
     }
-    fprintf(output_file, "move $fp, $sp\n");
     fprintf(output_file, "addi $sp, $sp, -%d\n", func_status.sp_offset);
     fprintf(output_file, "sw $ra, %d($sp)\n", func_status.sp_offset-4);
     fprintf(output_file, "sw $fp, %d($sp)\n", func_status.sp_offset-8);
@@ -172,7 +187,7 @@ void prologue(InterCodes codes){
 void epilogue(){
     for(int i = t0; i < s7; i++){
         if(reg[i] != NULL){
-            reg[i]->reg_no = 0;
+            reg[i]->reg_no = -1;
             reg[i] = NULL;
         }
     }
@@ -341,39 +356,39 @@ void PrintCodes(InterCodes codes) {
         }
         case CALL: {
             Operands arg_list = func_status.arg_list;
-            for(int i = a0; i < a3; i++){
-                if(reg[i] != NULL){
-                    Save(reg[i]);
-                    reg[i]->reg_no = -1;
-                    reg[i] = NULL;
-                }
-            }
             for (int i = 0; i < s7; i++) {
                 if(reg[i] != NULL) {
-                    Save(reg[i]);
-                    reg[i]->reg_no = -1;
-                    reg[i] = NULL;
+                    if(check_in(arg_list, reg[i])) {
+                        if (reg[i]->nxt_code > 0)
+                            SaveFree(i);
+                    }
+                    else
+                        SaveFree(i);
                 }
             }
+            func_status.st_lk = true;
             int min = (func_status.arg_count < 4) ? func_status.arg_count : 4;
             arg_list = func_status.arg_list;
             for(int i = 0; i < min; i++){
-                fprintf(output_file, "move %s, %s", reg_name[i+a0], reg_name[ensure( arg_list->op)]);
+                fprintf(output_file, "move %s, %s\n", reg_name[i+a0], reg_name[ensure( arg_list->op)]);
                 arg_list = arg_list->nxt;
             }int size = func_status.arg_count - 4;
             if(size > 0) {
-                fprintf(output_file, "addi $sp, $sp, %d", size * 4);
+                fprintf(output_file, "addi $sp, $sp, -%d\n", size * 4);
                 for (int i = 0; i < size; i++) {
-                    fprintf(output_file, "sw %s, %d($sp)", reg_name[ensure(arg_list->op)], i * 4);
+                    fprintf(output_file, "sw %s, %d($sp)\n", reg_name[ensure(arg_list->op)], i * 4);
                     arg_list = arg_list->nxt;
                 }
-            }for(int i = 0; i < s7; i++){
+            }func_status.st_lk = false;
+            for(int i = 0; i < t9; i++){
                 if(reg[i] != NULL)
                     reg[i]->reg_no = -1;
                 reg[i] = NULL;
             }
             fprintf(output_file, "jal %s\n", codes->code.u.call.name);
             fprintf(output_file, "move %s, $v0\n", reg_name[allocate(codes->code.u.call.x)]);
+            func_status.arg_list = NULL;
+            func_status.arg_count = 0;
             break;
         }
         case DEC:
@@ -391,18 +406,16 @@ void PrintCodes(InterCodes codes) {
         case ARG:
             func_status.arg_count++;
             Operands arg = malloc(sizeof(struct Operands_));
-            arg->op = NULL;
-            arg->nxt = NULL;
-            if(func_status.arg_list == NULL)
-                func_status.arg_list = arg;
-            else{
-                Operands cur = func_status.arg_list;
-                while(cur->nxt != NULL)
-                    cur = cur->nxt;
-                cur->nxt = arg;
-            }
+            arg->op = codes->code.u.op_x;
+            arg->nxt = func_status.arg_list;
+            func_status.arg_list = arg;
             break;
         case PARAM:
+            if(func_status.param_count < 4)
+                fprintf(output_file, "move %s, %s\n", reg_name[allocate(codes->code.u.op_x)], reg_name[func_status.param_count+a0]);
+            else
+                fprintf(output_file, "lw %s, %d($fp)\n", reg_name[allocate(codes->code.u.op_x)], (func_status.param_count-4)*4);
+            func_status.param_count++;
             break;
         default:
             break;
@@ -435,15 +448,12 @@ void scan_mark(InterCodes codes, int num){
             } else if(codes->code.u.assign.kind == LEFT){
                 codes->code.u.assign.left->nxt_code = num;
                 codes->code.u.assign.right->nxt_code = num;
-
             } else if(codes->code.u.assign.kind == RIGHT){
                 codes->code.u.assign.left->nxt_code = -1;
                 codes->code.u.assign.right->nxt_code = num;
-
             } else if(codes->code.u.assign.kind == GET_ADDRESS){
                 codes->code.u.assign.left->nxt_code = -1;
                 codes->code.u.assign.right->nxt_code = num;
-
             } else
                 Assert(0);
             break;
@@ -463,6 +473,8 @@ void scan_mark(InterCodes codes, int num){
             codes->code.u.op_x->nxt_code = -1;
             break;
         case PARAM:
+            codes->code.u.op_x->nxt_code = -1;
+            break;
         case DEC:
             break;
     }
@@ -490,7 +502,7 @@ void DividingBlock(InterCodes codes, char *filename){
         for(int i = 0; i <= num; i++){
             PrintCodes(codes);
             codes = codes->next;
-        }for(int i = 0; i <= s7; i++){
+        }for(int i = t0; i <= s7; i++) {
             if(reg[i] != NULL)
                 Free(reg[i]);
         }
