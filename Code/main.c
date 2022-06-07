@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
     }
     if(!is_semantic_error) {
         InterCodes codes = TransProgram(CST);
+        PrintInterCodes(codes, "out1.ir");
         DividingBlock(codes, argv[2]);
     }
     return 0;

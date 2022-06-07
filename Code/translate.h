@@ -13,6 +13,8 @@ struct Operand_ {
     int reg_no;
     int nxt_code;
     int offset;
+    int multi_block;
+    int cur_block;
 };
 
 typedef struct Operands_* Operands;
@@ -32,6 +34,7 @@ typedef struct InterCode{
         struct {Operand x, y; char relop[16];int label_no;} cjp;
         struct {Operand x; char name[NAME_SIZE];} call;
         Operand op_x;
+        Operand ops[3];
     }u;
     int op_num;
     int nxt_code[3];
@@ -89,5 +92,6 @@ InterCodes  TransLogic              (node_t *node, Operand place);
 InterCodes  TransInt                (node_t *node, Operand place);
 InterCodes  TransFloat              (node_t *node, Operand place);
 
+void        PrintInterCodes         (InterCodes codes, char *filename);
 void        DividingBlock           (InterCodes codes, char *filename);
 #endif

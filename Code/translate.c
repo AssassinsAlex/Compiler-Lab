@@ -101,6 +101,8 @@ Operand operand_malloc(int kind, int num){
     op->nxt_code = -1;
     op->reg_no = -1;
     op->offset = -1;
+    op->multi_block = false;
+    op->cur_block = -1;
     switch (kind) {
         case VARIABLE_O:
         case TEMPORARY_O:
@@ -773,3 +775,135 @@ InterCodes TransFloat(node_t *node, Operand place){
     return NULL;
 }
 
+void PrintOperand(Operand x, FILE*file){
+    switch (x->kind) {
+        case VARIABLE_O:
+            fprintf(file, "v%d", x->u.var_no);
+            break;
+        case CONSTANT_O:
+            fprintf(file, "#%d", x->u.value);
+            break;
+        case TEMPORARY_O:
+            fprintf(file, "t%d", x->u.var_no);
+            break;
+        case ADDRESS_O:
+            fprintf(file, "a%d", x->u.var_no);
+            break;
+        default:
+            Assert(0);
+    }
+}
+
+void PrintInterBinop(int kind, FILE *file){
+    switch (kind) {
+        case ADD:
+            fprintf(file, " + ");
+            break;
+        case SUB:
+            fprintf(file, " - ");
+            break;
+        case MUL:
+            fprintf(file, " * ");
+            break;
+        case DIVI:
+            fprintf(file, " / ");
+            break;
+        default:
+            Assert(0);
+    }
+}
+
+void PrintInterAssign(InterCodes codes, FILE *file){
+    if(codes->code.u.assign.kind == LEFT)
+        fprintf(file, "*");
+    PrintOperand(codes->code.u.assign.left, file);
+    switch (codes->code.u.assign.kind) {
+        case NORMAL:
+        case LEFT:
+            fprintf(file, " := ");
+            break;
+        case GET_ADDRESS:
+            fprintf(file, " := &");
+            break;
+        case RIGHT:
+            fprintf(file, " := *");
+            break;
+        default:
+            Assert(0);
+    }
+    PrintOperand(codes->code.u.assign.right, file);
+}
+
+void PrintArith(InterCodes codes, FILE *file){
+    PrintOperand(codes->code.u.binop.result, file);
+    fprintf(file, " := ");
+    PrintOperand(codes->code.u.binop.op1, file);
+    PrintInterBinop(codes->code.kind, file);
+    PrintOperand(codes->code.u.binop.op2, file);
+}
+
+void PrintInterCodes(InterCodes codes, char *filename){
+    FILE *file = fopen(filename, "w");
+    while(codes != NULL){
+        switch (codes->code.kind) {
+            case ASSIGN:
+                PrintInterAssign(codes, file);
+                break;
+            case ADD:
+            case SUB:
+            case MUL:
+            case DIVI:
+                PrintArith(codes, file);
+                break;
+            case FUNCDEF:
+                fprintf(file, "FUNCTION %s :", codes->code.u.func_name);
+                break;
+            case RETURN:
+                fprintf(file, "RETURN ");
+                PrintOperand(codes->code.u.op_x, file);
+                break;
+            case LABEL:
+                fprintf(file, "LABEL label%d :", codes->code.u.label_no);
+                break;
+            case GOTO:
+                fprintf(file, "GOTO label%d", codes->code.u.label_no);
+                break;
+            case CJP:
+                fprintf(file, "IF ");
+                PrintOperand(codes->code.u.cjp.x, file);
+                fprintf(file, " %s ", codes->code.u.cjp.relop);
+                PrintOperand(codes->code.u.cjp.y, file);
+                fprintf(file, " GOTO label%d", codes->code.u.cjp.label_no);
+                break;
+            case CALL:
+                PrintOperand(codes->code.u.call.x, file);
+                fprintf(file, " := CALL %s", codes->code.u.call.name);
+                break;
+            case DEC:
+                fprintf(file, "DEC ");
+                PrintOperand(codes->code.u.dec.x, file);
+                fprintf(file, " %d", codes->code.u.dec.size);
+                break;
+            case READ:
+                fprintf(file, "READ ");
+                PrintOperand(codes->code.u.op_x, file);
+                break;
+            case WRITE:
+                fprintf(file, "WRITE ");
+                PrintOperand(codes->code.u.op_x, file);
+                break;
+            case ARG:
+                fprintf(file, "ARG ");
+                PrintOperand(codes->code.u.op_x, file);
+                break;
+            case PARAM:
+                fprintf(file, "PARAM ");
+                PrintOperand(codes->code.u.op_x, file);
+                break;
+            default:
+                break;
+        }
+        fprintf(file, "\n");
+        codes = codes->next;
+    }
+}

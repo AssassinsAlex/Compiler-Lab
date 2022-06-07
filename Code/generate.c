@@ -49,15 +49,15 @@ void _allocate(Operand x, int r){
 }
 
 void Save(Operand x){
-    if(x->offset < 0){
-        if(func_status.st_lk)
+    if(x->offset < 0) {
+        if (func_status.st_lk)
             return;
         fprintf(output_file, "addi $sp, $sp, -4\n");
         func_status.sp_offset += 4;
         x->offset = func_status.sp_offset;
-        fprintf(output_file, "sw %s, -%d($fp)\n", reg_name[x->reg_no], x->offset);
-    }else
-        fprintf(output_file, "sw %s, -%d($fp)\n", reg_name[x->reg_no], x->offset);
+    }
+    fprintf(output_file, "sw %s, -%d($fp)\n", reg_name[x->reg_no], x->offset);
+
 }
 
 void _free(Operand x){
@@ -74,7 +74,7 @@ void SaveFree(int r){
 
 void Free(Operand x){
     if(x->nxt_code > 0) return;
-    if(x->kind == VARIABLE_O){
+    if(x->kind == VARIABLE_O || x->multi_block){
         Save(x);
     }
     _free(x);
@@ -124,7 +124,9 @@ int ensure(Operand x){
 }
 
 void allocate_stack(Operand op, int size){
-    if(op->kind != VARIABLE_O || op->offset >= 0)
+    if(op->offset >= 0)
+        return;
+    if(op->kind != VARIABLE_O && !op->multi_block)
         return;
     func_status.sp_offset += size;
     op->offset = func_status.sp_offset;
@@ -142,29 +144,11 @@ void prologue(InterCodes codes){
     func_status.arg_list = NULL;
     func_status.st_lk = false;
     while(cur != NULL && cur->code.kind != FUNCDEF){
-        switch (cur->code.kind) {
-            case LABEL:case GOTO:case FUNCDEF:
-                break;
-            case ASSIGN:
-                allocate_stack(cur->code.u.assign.left, 4);
-                allocate_stack(cur->code.u.assign.right, 4);
-                break;
-            case ADD:case SUB:case MUL:case DIVI:
-                allocate_stack(cur->code.u.binop.op1, 4);
-                allocate_stack(cur->code.u.binop.op2, 4);
-                allocate_stack(cur->code.u.binop.result, 4);
-                break;
-            case CJP:
-                allocate_stack(cur->code.u.cjp.x, 4);
-                allocate_stack(cur->code.u.cjp.y, 4);
-                break;
-            case RETURN:case WRITE:case READ:case ARG:
-            case CALL:case PARAM:
-                allocate_stack(cur->code.u.op_x, 4);
-                break;
-            case DEC:
-                allocate_stack(cur->code.u.dec.x, cur->code.u.dec.size);
-                break;
+        if(cur->code.kind == DEC){
+            allocate_stack(cur->code.u.dec.x, cur->code.u.dec.size);
+        } else{
+            for(int i = 0; i < cur->code.op_num; i++)
+                allocate_stack(cur->code.u.ops[i], 4);
         }cur = cur->next;
     }
     fprintf(output_file, "addi $sp, $sp, -%d\n", func_status.sp_offset);
@@ -180,7 +164,6 @@ void prologue(InterCodes codes){
             reg[r] = NULL;
         }else
             func_status.op[i] = NULL;
-
     }
 }
 
@@ -236,8 +219,8 @@ void PrintAssign(InterCodes codes){
 void PrintAdd(InterCodes codes){
     Operand op1 = codes->code.u.binop.op1;
     Operand op2 = codes->code.u.binop.op2;
-    int rr = allocate(codes->code.u.binop.result);
     int rop1 = ensure(op1);
+    int rr = allocate(codes->code.u.binop.result);
     if(op2->kind == CONSTANT_O)
         fprintf(output_file, "addi %s, %s, %d\n", reg_name[rr], reg_name[rop1], op2->u.value);
     else {
@@ -250,8 +233,8 @@ void PrintAdd(InterCodes codes){
 void PrintSub(InterCodes codes){
     Operand op1 = codes->code.u.binop.op1;
     Operand op2 = codes->code.u.binop.op2;
-    int rr = allocate(codes->code.u.binop.result);
     int rop1 = ensure(op1);
+    int rr = allocate(codes->code.u.binop.result);
     if(op2->kind == CONSTANT_O)
         fprintf(output_file, "addi %s, %s, -%d\n",  reg_name[rr], reg_name[rop1], op2->u.value);
     else {
@@ -264,6 +247,7 @@ void PrintSub(InterCodes codes){
 void PrintBinop(InterCodes codes){
     Operand op1 = codes->code.u.binop.op1;
     Operand op2 = codes->code.u.binop.op2;
+    int r1 = ensure(op1);
     int rr = allocate(codes->code.u.binop.result);
     char *sign;
     if(codes->code.kind == MUL)
@@ -272,7 +256,7 @@ void PrintBinop(InterCodes codes){
         sign = "div";
     else
         Assert(0);
-    fprintf(output_file, "%s %s, %s, %s\n", sign, reg_name[rr], reg_name[ensure(op1)], reg_name[ensure(op2)]);
+    fprintf(output_file, "%s %s, %s, %s\n", sign, reg_name[rr], reg_name[r1], reg_name[ensure(op2)]);
     Free(op1);
     Free(op2);
 }
@@ -286,21 +270,8 @@ int check_in(Operands arg_list, Operand op){
 }
 
 void PrintCodes(InterCodes codes) {
-    switch (codes->code.op_num) {
-        case 1:
-            codes->code.u.op_x->nxt_code = codes->code.nxt_code[0];
-            break;
-        case 2:
-            codes->code.u.assign.left->nxt_code =  codes->code.nxt_code[0];
-            codes->code.u.assign.right->nxt_code = codes->code.nxt_code[1];
-            break;
-        case 3:
-            codes->code.u.binop.result->nxt_code = codes->code.nxt_code[0];
-            codes->code.u.binop.op1->nxt_code = codes->code.nxt_code[1];
-            codes->code.u.binop.op2->nxt_code = codes->code.nxt_code[2];
-        default:
-            break;
-    }
+    for(int i = 0; i < codes->code.op_num; i++)
+        codes->code.u.ops[i]->nxt_code = codes->code.nxt_code[i];
     switch (codes->code.kind) {
         case ASSIGN:
             PrintAssign(codes);break;
@@ -423,21 +394,8 @@ void PrintCodes(InterCodes codes) {
 
 }
 void scan_mark(InterCodes codes, int num){
-    switch (codes->code.op_num) {
-        case 1:
-            codes->code.nxt_code[0] = codes->code.u.op_x->nxt_code;
-            break;
-        case 2:
-            codes->code.nxt_code[0] = codes->code.u.assign.left->nxt_code;
-            codes->code.nxt_code[1] = codes->code.u.assign.right->nxt_code;
-            break;
-        case 3:
-            codes->code.nxt_code[0] = codes->code.u.binop.result->nxt_code;
-            codes->code.nxt_code[1] = codes->code.u.binop.op1->nxt_code;
-            codes->code.nxt_code[2] = codes->code.u.binop.op2->nxt_code;
-        default:
-            break;
-    }
+    for(int i = 0; i < codes->code.op_num; i++)
+        codes->code.nxt_code[i] = codes->code.u.ops[i]->nxt_code;
     switch (codes->code.kind) {
         case LABEL:case FUNCDEF:case GOTO:
             break;
@@ -480,9 +438,30 @@ void scan_mark(InterCodes codes, int num){
     }
 }
 
+void JudgeMultiBlock(InterCodes codes){
+    int block_num = 0;
+    while(codes != NULL){
+        int kind = codes->code.kind;
+        if(kind == LABEL || kind == GOTO || kind == FUNCDEF)
+            block_num++;
+        for(int i = 0; i < codes->code.op_num; i++){
+            if(codes->code.u.ops[i]->cur_block == -1)
+                codes->code.u.ops[i]->cur_block = block_num;
+            else if(codes->code.u.ops[i]->cur_block != block_num) {
+                codes->code.u.ops[i]->cur_block = block_num;
+                codes->code.u.ops[i]->multi_block = true;
+            }
+        }
+        if(kind == CJP)
+            block_num++;
+        codes = codes->next;
+    }
+}
+
 void DividingBlock(InterCodes codes, char *filename){
     output_file = fopen(filename, "w");
     init();
+    JudgeMultiBlock(codes);
     while(codes != NULL) {
         InterCodes cur_code = codes;
         int num = 0;

@@ -1,65 +1,69 @@
+int mod(int a, int b) {
+  return a - (a / b) * b;
+}
+
+int do_work(int n) {
+  int x1, x2, x3;
+  n = mod(n, 5);
+  x1 = 2 * n;
+  x2 = n + n;
+  x3 = 4 * 4;
+  x1 = x3 + x2 + x1;
+  x2 = x1 + (x1 + 1) * (x2 + 1) * (x3 + 1);
+  x3 = x1 * (x1 + 1) + (x2 + 1) * (x2 + 1) + (x3 + 1) * (x3 + 1);
+  x1 = (x1 + 1) + (x2 + 1) + (x3 + 1);
+  return x1 + x2 + x3;
+}
+
 int main() {
-  int n1;
-  int n2;
-  int a1[10];
-  int a2[10];
-  int a[20];
-  int i = 0, j = 0, k = 0, n = 0;
+  int t1 = 2;
+  int t2 = 5;
+  int t3 = 10;
+  int i = 3 * (t2 * t3) - 100 / 5;
+  int j = 42 - (t1 * t2) * (t1 * (t2 * t3) / 32) + 100;
+  int k = 3 * 4 * 5 - 10 - (-(t1 * t2) * 3) - (t1 * t2) - (t1 * t2) + 3 + 2 + 1;
   int cnt = 0;
-
-  n1 = read();
-  if (n1 > 10) {
-    n1 = 10;
-  }
-  while (cnt < n1) {
-    a1[cnt] = read();
+  int sum = 0;
+  int len = t1 * t2;
+  int array[10];
+  int brray[10];
+  while (cnt < k) {
+    sum = sum + 1;
+    array[mod(cnt, len)] = i;
+    i = i + 1;
     cnt = cnt + 1;
-  }
-
-  n2 = read();
-  if (n2 > 10) {
-    n2 = 10;
   }
   cnt = 0;
-  while (cnt < n2) {
-    a2[cnt] = read();
+  while (cnt < 100) {
+    brray[mod(cnt, len)] = i;
+    i = i + 1;
     cnt = cnt + 1;
   }
 
-  while (i < n1 && j < n2) {
-    if (a1[i] < a2[j]) {
-      a[k] = a1[i];
-      k = k + 1;
-      i = i + 1;
+  cnt = 0;
+  while (cnt < mod(do_work(10), 30)) {
+    j = array[mod(cnt, len)];
+    sum = sum + (-1) * cnt + do_work(j);
+    j = j + 2 * cnt;
+    j = j + 2 * cnt;
+    j = j + 2 * cnt;
+    if (mod(do_work(10), 10) == mod(do_work(j), 10)) {
+      j = mod(j, 10);
     } else {
-      a[k] = a2[j];
-      k = k + 1;
-      j = j + 1;
+      j = mod(j, 20);
     }
+    array[mod(cnt, len)] = j * j;
+    cnt = cnt + 1;
   }
-
-  while (i < n1) {
-    a[k] = a1[i];
-    k = k + 1;
-    i = i + 1;
-  }
-  while (j < n2) {
-    a[k] = a2[j];
-    k = k + 1;
-    j = j + 1;
-  }
-
-  if ((n1 + n2 == 0) || (n1 + n2 == 1)) {
-    write(a[n1 + n2 - 1]);
-  } else if (n1 + n2 == 2) {
-    write((a[n1 + n2 - 1] + a[n1 + n2 - 2]) / 2);
-  } else {
-    n = n1 + n2;
-    if ((n - (n / 2) * 2) == 0) {
-      write((a[n / 2] + a[n / 2 - 1]) / 2);
-    } else {
-      write(a[n / 2]);
-    }
-  }
+  j = j + array[0] + array[1];
+  j = j + array[0] + array[1];
+  j = j + array[0] + array[1];
+  j = j + array[0] + array[1];
+  write(j);
+  write(array[0]);
+  write(array[1]);
+  write(array[2]);
+  write(array[3]);
+  write(array[4]);
   return 0;
 }
