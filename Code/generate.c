@@ -53,9 +53,9 @@ void Save(Operand x){
         if(func_status.st_lk)
             return;
         fprintf(output_file, "addi $sp, $sp, -4\n");
-        fprintf(output_file, "sw %s, 0($sp)\n", reg_name[x->reg_no]);
         func_status.sp_offset += 4;
         x->offset = func_status.sp_offset;
+        fprintf(output_file, "sw %s, -%d($fp)\n", reg_name[x->reg_no], x->offset);
     }else
         fprintf(output_file, "sw %s, -%d($fp)\n", reg_name[x->reg_no], x->offset);
 }
