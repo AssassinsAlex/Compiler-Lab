@@ -1,90 +1,36 @@
-## 实验二报告
+## 实验四报告
 
-### 一、 实现的功能
+### 一、 实现
 
-对以下错误的检查：
+* 指令选择机制：线性IR
 
-* 错误类型2：函数在调用时未经定义
+  * 根据表11，逐条将中间代码对应到目标代码
 
-  查询符号表中*u.func.defined*是否为*true*
+* 寄存器分配算法：局部寄存器分配算法
 
-  ```c
-  struct symbol_
-  {
-      enum {VARIABLE, FUNCTION, STRUCT_TAG} kind;
-      union {
-          Type variable;
-          Type struct_tag;
-          struct {
-              int defined;
-              Type ret;
-              FieldList parameter;
-          } func;
-      }u;
-      char name[NAME_SIZE];
-      int first_lineno;
-      void *belong;
-      symbol hash_nxt;
-      symbol list_nxt;
-  };
-  ```
+  * 将代码分成基本块
+  * 每个基本块内，对中间代码逐条扫描，若需要使用寄存器
+    * 存在空闲寄存器，则直接分配
+    * 不存在空闲寄存器，选择本块内将来用不到或最久以后才用到的变量的寄存器，将其内容写回内存
 
-  函数调用时声明了但没定义的情况，归结到错误类型18
+* 参数传递：
 
-* 错误类型18：函数进行了声明，但没有被定义
+  * 参数小于等于4个，使用\$a0至\$a3这四个寄存器传递
+  * 参数多于4个，前四个放在\$a0至\$a3这四个寄存器，剩下的依次压到栈里
+  * 返回值放到\$v0
 
-  最后额外遍历一边符号表，检查所有函数是否声明并定义
+* 栈管理：
 
-  ```c
-  void CheckFun(){
-      Assert(list_head != NULL);
-      symbol cur = list_head->sym;
-      while(cur){
-          if(cur->kind == FUNCTION){
-              if(!cur->u.func.defined) {
-                  semantic_error(18, cur->first_lineno, "declared but not defined");
-              }
-          }cur = cur->list_nxt;
-      }
-  }
-  ```
+  * \$sp指向栈顶，\$fp指向活动记录底部
+  * 寄存器保存策略：\$t0至​\$t9由调用者负责保存，而\$s0~\$s8由被调用者负责保存
+  * 调用者的过程调用：
+    * 调用前，将保存活跃变量的所有调用者保存寄存器写入栈中，将参数传入寄存器或者栈
+    * 函数调用之后，将之前保存的内容从栈中恢复
+  * 被调用者的过程调用：
+    * 函数开头，若函数内调用其他函数，则将\$ra压栈；若用到\$fp则将其压栈并设置好新的\$fp；将本函数内要用到的被调用者保存寄存器压栈，将形参取出
+    * 函数结尾，将函数开头保存的寄存器恢复
 
-要求实现：
-
-* 要求2.2：变量的定义受可嵌套作用域的影响， 外层语句块中定义的变量可在内层语句块中重复定义，内层语句块中定义的变量到了外层语句块中就会消亡，不同函数体内定义的局部变量可以相互重名
-
-  *struct symbol_*中引入变量*list_nxt*支持从另一维度引入链表将符号表中属于同一层作用域的所有变量都串起来
-
-* 要求2.3：将结构体间的类型等价机制由名等价改为结构等价
-
-  类型比较时展开比较
-
-  ```c
-  int type_com(Type dst, Type src){
-      Assert( dst != NULL && src != NULL);
-      if(dst == Error_Type || src == Error_Type) return true;
-      if(dst->kind != src->kind) return false;
-      switch (dst->kind) {
-          case BASIC:
-              return dst->u.basic == src->u.basic;
-          case ARRAY:
-              return array_com(dst, src);
-          case STRUCTURE:
-              return field_com(dst->u.structure, src->u.structure);
-          default:
-              Assert(0);
-      }
-  }
   
-  int field_com(FieldList dst, FieldList src){
-      if(dst == NULL || src == NULL) return dst == src;
-      else{
-          if(type_com(dst->type, src->type))
-              return field_com(dst->tail, src->tail);
-          return false;
-      }
-  }
-  ```
 
 ## 二、编译
 

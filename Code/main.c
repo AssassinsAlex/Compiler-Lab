@@ -5,6 +5,7 @@ extern int yydebug;
 extern void yyrestart(FILE *input_file);
 extern int yyparse (void);
 #include "multitree.h"
+#include "translate.h"
 
 int main(int argc, char** argv) {
     if (argc <= 1) return 1;
@@ -23,6 +24,11 @@ int main(int argc, char** argv) {
     if(!get_syn_error){
         //print_tree(CST, 0);
         SddProgram(CST);
+    }
+    if(!is_semantic_error) {
+        InterCodes codes = TransProgram(CST);
+        //PrintInterCodes(codes, "out1.ir");
+        DividingBlock(codes, argv[2]);
     }
     return 0;
 }

@@ -1,313 +1,14 @@
 #include "semantic.h"
-/* symbol table */
-#define CHILD_1(node) node->child
-#define CHILD_2(node) CHILD_1(node)->brother
-#define CHILD_3(node) CHILD_2(node)->brother
-#define CHILD_4(node) CHILD_3(node)->brother
-#define CHILD_5(node) CHILD_4(node)->brother
-#define CHILD_6(node) CHILD_5(node)->brother
-#define CHILD_7(node) CHILD_6(node)->brother
-#ifdef DEBUG
-#endif
 
-#define CHILD(id, node) CHILD_##id(node)
-
-static Type INT_Type_const = NULL;
-static Type FLOAT_Type_const = NULL;
-static Type Error_Type = NULL;
-
-symbol symbol_list[HASH_SIZE] = {0};
-static list_node list_head = NULL;
-
-Type type_malloc(int kind1, int kind2){
-    if(kind1 == BASIC){
-        if(kind2 == TINT){
-            if(!INT_Type_const){
-                INT_Type_const = (Type)malloc(sizeof(struct Type_));
-                INT_Type_const->kind = BASIC;
-                INT_Type_const->locked = true;
-                INT_Type_const->func_locked = false;
-                INT_Type_const->u.basic = TINT;
-            }return INT_Type_const;
-        }else if(kind2 == TFLOAT){
-            if(!FLOAT_Type_const){
-                FLOAT_Type_const = (Type)malloc(sizeof(struct Type_));
-                FLOAT_Type_const->kind = BASIC;
-                FLOAT_Type_const->locked = true;
-                FLOAT_Type_const->func_locked = false;
-                FLOAT_Type_const->u.basic= TFLOAT;
-            }return FLOAT_Type_const;
-        }else{
-            Assert(0);
-        }
-    }else{
-        Type ret = (Type)malloc(sizeof(struct Type_));
-        ret->kind = kind1;
-        ret->locked = false;
-        ret->func_locked = false;
-        return  ret;
-    }
-}
-
-void type_free(Type type){
-    if(type->func_locked) return;
-    if(type->locked) return;
-    switch (type->kind) {
-        case BASIC:
-            // BASIC shouldn't free;
-            Assert(0);break;
-        case ARRAY:
-            type_free(type->u.array.elem);
-            free(type);
-            break;
-        case STRUCTURE:
-            field_free(type->u.structure);
-            free(type);
-            break;
-        default:
-            Assert(0);
-    }
-}
-
-int type_com(Type dst, Type src){
-    Assert( dst != NULL && src != NULL);
-    if(dst == Error_Type || src == Error_Type) return true;
-    if(dst->kind != src->kind) return false;
-    switch (dst->kind) {
-        case BASIC:
-            return dst->u.basic == src->u.basic;
-        case ARRAY:
-            return array_com(dst, src);
-        case STRUCTURE:
-            return field_com(dst->u.structure, src->u.structure);
-        default:
-            Assert(0);
-    }
-}
-
-int array_com(Type dst, Type src){
-    //[2][3]  [3][2]
-    int dim1 = 0, dim2 = 0;
-    while (dst->kind == ARRAY){
-        dim1++;
-        dst = dst->u.array.elem;
-    }
-    while(src->kind == ARRAY){
-        dim2++;
-        src = src->u.array.elem;
-    }
-    if(dim1 != dim2) return false;
-    return type_com(dst, src);
-}
-
-FieldList field_malloc(char *name, Type inh){
-    FieldList cur_field = (FieldList)malloc(sizeof(struct FieldList_));
-    strncpy(cur_field->name, name, NAME_SIZE);
-    cur_field->type = inh;
-    cur_field->tail = NULL;
-    return cur_field;
-}
-
-void field_free(FieldList field){
-    if(field == NULL) return;
-    field_free(field->tail);
-    type_free(field->type);
-    free(field);
-}
-
-Type field_find(char *name, FieldList field){
-    while(field != NULL){
-        if(!strncmp(name, field->name, NAME_SIZE))
-            return field->type;
-        field = field->tail;
-    }return NULL;
-}
-
-int field_com(FieldList dst, FieldList src){
-    if(dst == NULL || src == NULL) return dst == src;
-    else{
-        if(type_com(dst->type, src->type))
-            return field_com(dst->tail, src->tail);
-        return false;
-    }
-}
-
-symbol symbol_add(node_t *node, Type inh, int sym_kind){
-    if(inh == NULL || inh == Error_Type) return NULL;
-    symbol OldSym = hash_find(node->str);
-    if(OldSym && OldSym->belong == (void *)list_head){
-        switch (sym_kind) {
-            case FUNCTION:
-                Assert(0);break;
-            case VARIABLE:
-                semantic_error(3, node->lineno, "variable redefined");
-                break;
-            case STRUCT_TAG:
-                semantic_error(16, node->lineno, "struct name has been used");
-                break;
-            default:
-                Assert(0);break;
-        }return NULL;
-    }
-    symbol sym = (symbol)malloc(sizeof(struct symbol_));
-    strncpy(sym->name, node->str, NAME_SIZE);
-    sym->kind = sym_kind;
-    sym->first_lineno  = node->lineno;
-    switch (sym_kind) {
-        case FUNCTION:
-            sym->u.func.defined = false;
-            sym->u.func.ret = inh;
-            sym->u.func.parameter = NULL;
-            //sym->u.func.func_used = NULL;
-            break;
-        case VARIABLE:
-            sym->u.variable = inh;
-            break;
-        case STRUCT_TAG:
-            sym->u.struct_tag = inh;
-            break;
-        default:
-            Assert(0);
-    }
-    list_insert_sym(sym);
-    sym->belong = list_head;
-    hash_insert(sym);
-    return sym;
-}
-
-static void fun_unlock(FieldList field){
-    if(field == NULL)
-        return;
-    else{
-        field->type->func_locked = false;
-        fun_unlock(field->tail);
-    }
-}
-
-void symbol_free(symbol sym){
-    switch (sym->kind) {
-        case VARIABLE:
-            type_free(sym->u.variable);
-            break;
-        case FUNCTION:
-        {
-            sym->u.func.ret->func_locked = false;
-            type_free(sym->u.func.ret);
-            fun_unlock(sym->u.func.parameter);
-            field_free(sym->u.func.parameter);
-            //struct list_int *cur = sym->u.func.func_used;
-            //while(cur){
-            //    cur = cur->nxt;
-            //    free(sym->u.func.func_used);
-            //    sym->u.func.func_used = cur;
-
-            //}
-            break;
-        }
-        case STRUCT_TAG:
-            sym->u.struct_tag->locked = false;
-            type_free(sym->u.struct_tag);
-            break;
-        default:
-            Assert(0);
-    }free(sym);
-}
-
-unsigned int hash_pjw(char *name){
-    unsigned int val = 0, i;
-    for(; *name; ++name){
-        val = (val << 2) + *name;
-        if((i = val) & ~HASH_SIZE) val = (val ^ (i >> 12)) & HASH_SIZE;
-    }
-    return val;
-}
-
-void hash_insert(symbol sym){
-    unsigned int key = hash_pjw(sym->name);
-    sym->hash_nxt = symbol_list[key];
-    symbol_list[key] = sym;
-}
-
-symbol hash_find(char *name){
-    unsigned int key = hash_pjw(name);
-    symbol cur = symbol_list[key];
-    while(cur != NULL){
-        if(!strncmp(cur->name, name, NAME_SIZE))
-            return cur;
-        cur=cur->hash_nxt;
-    }
-    return NULL;
-}
-
-int hash_delete(symbol sym){
-    unsigned int key = hash_pjw(sym->name);
-    if(symbol_list[key] == sym){
-        symbol_list[key] = sym->hash_nxt;
-        return 1;
-    }
-    symbol cur = symbol_list[key];
-    while(cur->hash_nxt != NULL){
-        if(cur->hash_nxt == sym){
-            cur->hash_nxt = sym->hash_nxt;
-            return 1;
-        }cur = cur->hash_nxt;
-    }
-    return 0;
-}
-
-/* orthogonal list */
-
-list_node list_create(){
-    list_node new = (list_node)malloc(sizeof(struct list_node_));
-    new->sym = NULL;
-    new->nxt = NULL;
-    return new;
-}
-
-void list_insert(list_node node){
-    node->nxt = list_head;
-    list_head = node;
-}
-
-void list_insert_sym(symbol sym){
-    if(list_head == NULL){
-        list_head = list_create();
-    }sym->list_nxt = list_head->sym;
-    list_head->sym = sym;
-}
-
-void list_pop(){
-    while(list_head->sym != NULL){
-        symbol tmp = list_head->sym;
-        list_head->sym = tmp->list_nxt;
-        hash_delete(tmp);
-        symbol_free(tmp);
-    }
-    list_node tmp = list_head;
-    list_head = list_head->nxt;
-    free(tmp);
-    //Assert(list_head);
-}
-
-/* ============================================ */
+extern Type Error_Type;
 
 void SddProgram(node_t *node){
     Assert(node->token_val == Program);
-    /* 在此初始化一些变量 */
-    Error_Type = malloc(sizeof (struct Type_));
-    Error_Type->kind = BASIC;
-    Error_Type->locked = true;
-    Error_Type->func_locked = false;
-    Error_Type->u.basic = -1;
-
-    list_insert(list_create());
+    env_init();
 
     SddExtDefList(CHILD(1, node));
     CheckFun();
-    list_pop();
-    free(Error_Type);
-    free(FLOAT_Type_const);
-    free(INT_Type_const);
+    env_pop();
 }
 
 void SddExtDefList(node_t *node){
@@ -447,11 +148,11 @@ void SddVarDec(node_t *node, Type inh, Type structure){
 static FieldList SddFunVar_(node_t *node){
     Assert(node->token_val == FunDec);
     Assert(node->production_id == 0 || node->production_id == 1);
-    list_insert(list_create());
+    env_push();
     FieldList varlist = NULL;
     if(node->production_id == 0) {
         SddVarList(CHILD(3, node));
-        symbol cur = list_head->sym;
+        symbol cur = envs->sym;
         while(cur){
             Assert(cur->kind != FUNCTION);
             cur->u.variable->func_locked = true;
@@ -477,7 +178,7 @@ static symbol SddFun_(node_t *node, Type inh){
         FieldList field = SddFunVar_(node);
         if(!field_com(OldSym->u.func.parameter, field)) {
             semantic_error(19, node->lineno, "function conflict");
-            list_pop();
+            env_pop();
             fun_unlock(field);
             field_free(field);
             return NULL;
@@ -517,7 +218,7 @@ void SddFunDec(node_t *node, Type inh){
         semantic_error(4, node->lineno, "redefined function");
         return;
     }if(SddFun_(node, inh)){
-        list_pop();
+        env_pop();
     }
 }
 
@@ -593,7 +294,7 @@ void SddDec(node_t *node, Type inh, Type structure){
 void SddCompSt(node_t *node, int isFun, Type ret){
     Assert(node->token_val == CompSt);
     if(!isFun)
-        list_insert(list_create());
+        env_push();
     if(CHILD(3, node) != NULL){
         if(CHILD(4, node) != NULL){
             SddDefList(CHILD(2, node), NULL);
@@ -605,7 +306,7 @@ void SddCompSt(node_t *node, int isFun, Type ret){
                 SddStmtList(CHILD(2, node), ret);
         }
     }
-    list_pop();
+    env_pop();
 }
 
 void SddStmtList(node_t *node, Type ret){
@@ -653,8 +354,6 @@ Type SddExp(node_t *node, int isLeft){
         switch (node->production_id) {
             case 0:
             case 8:
-            case 11:
-            case 12:
             case 13:
             case 14:
             case 15:
@@ -699,7 +398,7 @@ Type SddExp(node_t *node, int isLeft){
         case 9:
             return CheckArithm1(SddExp(CHILD(2, node), false), node->lineno);
         case 10:
-            return CheckInt1(SddExp(CHILD(1, node), false), node->lineno);
+            return CheckInt1(SddExp(CHILD(2, node), false), node->lineno);
         case 11:
         case 12:
             return SddExpFun(node, isLeft);
@@ -728,6 +427,9 @@ void SddArgs(node_t *node, FieldList ArgList){
         semantic_error(9, node->lineno, "the type of arg conflict");
     if(node->production_id == 0)
         SddArgs(CHILD(3, node), ArgList->tail);
+    else if(ArgList->tail != NULL)
+        semantic_error(9, node->lineno, "the type of arg conflict");
+
 }
 
 Type SddExpFun(node_t *node, int isLeft){
@@ -773,7 +475,7 @@ Type SddExpStruct(node_t *node, int isLeft){
     if(syn1->kind != STRUCTURE) {
         semantic_error(13, CHILD(1, node)->lineno, "use dot but not structure");
         return Error_Type;
-    }Type syn2 = field_find(CHILD(3, node)->str, syn1->u.structure);
+    }Type syn2 = field_find(CHILD(3, node)->str, syn1->u.structure)->type;
     if(syn2 == NULL){
         semantic_error(14,CHILD(3, node)->lineno, "the field has no match name");
         return Error_Type;
@@ -875,8 +577,8 @@ Type CheckAssign(Type type1, Type type2, int lineno){
 }
 
 void CheckFun(){
-    Assert(list_head != NULL);
-    symbol cur = list_head->sym;
+    Assert(envs != NULL);
+    symbol cur = envs->sym;
     while(cur){
         if(cur->kind == FUNCTION){
             if(!cur->u.func.defined) {
@@ -889,8 +591,4 @@ void CheckFun(){
             }
         }cur = cur->list_nxt;
     }
-}
-
-void semantic_error(int errorno, int lineno, char* str){
-    printf("Error type %d at Line %d: %s.\n", errorno, lineno, str);
 }

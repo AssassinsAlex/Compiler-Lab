@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <stdarg.h>
+#include "debug.h"
 
 enum {Program, ExtDefList, ExtDef, ExtDecList,
     Specifier, StructSpecifier, OptTag, Tag,

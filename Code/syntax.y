@@ -51,9 +51,9 @@
 %left OR
 %left AND
 %left RELOP
-%left PLUS SUB
+%left PLUS MINUS
 %left STAR DIV
-%right MINUS NOT
+%right NOT
 %left LP RP LB RB DOT
 
 %nonassoc LOWER_THAN_ELSE
@@ -74,7 +74,7 @@ ExtDef : Specifier ExtDecList SEMI {$$ = trans_tree("ExtDef", ExtDef, 0, @$.firs
     | Specifier error SEMI {$$ = NULL;prompt("wrong extdef");}
     | error SEMI {$$ = NULL; prompt("wrong extdef");}
     | error FunDec CompSt {$$ = NULL;}
-    | Specifier error{$$ = NULL; prompt("need ;");};
+    | Specifier error{$$ = NULL; prompt("need ;");}
     ;
 ExtDecList : VarDec {$$ = trans_tree("ExtDecList", ExtDecList, 0, @$.first_line, 1, $1, @1.first_line);}
     | VarDec COMMA ExtDecList {$$ = trans_tree("ExtDecList", ExtDecList, 1, @$.first_line, 3, $1, @1.first_line, $2, @2.first_line, $3, @3.first_line);}
